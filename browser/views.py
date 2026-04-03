@@ -10,6 +10,11 @@ from django.shortcuts import get_object_or_404, render
 
 from .models import Library
 
+try:
+    from moviepy import VideoFileClip
+except ImportError:
+    VideoFileClip = None
+
 # ── constants ────────────────────────────────────────────────────────────────
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".tiff", ".tif"}
@@ -70,6 +75,27 @@ def _generate_image_thumbnail(abs_path):
     try:
         from PIL import Image
         with Image.open(abs_path) as img:
+            img = img.convert("RGB")
+            img.thumbnail(THUMBNAIL_SIZE, Image.LANCZOS)
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG", quality=75)
+            return buf.getvalue()
+    except Exception:
+        return None
+
+
+def _generate_video_thumbnail(abs_path):
+    """Return JPEG bytes for a video thumbnail, or None on failure."""
+    if VideoFileClip is None:
+        return None
+    try:
+        with VideoFileClip(abs_path) as clip:
+            # Get a frame at 10% into the video, or at 1 second, whichever is smaller
+            time = min(clip.duration * 0.1, 1.0)
+            frame = clip.get_frame(time)
+            # Convert to PIL Image
+            from PIL import Image
+            img = Image.fromarray(frame)
             img = img.convert("RGB")
             img.thumbnail(THUMBNAIL_SIZE, Image.LANCZOS)
             buf = io.BytesIO()
@@ -234,6 +260,12 @@ def serve_thumbnail(request, library_id, filepath):
 
     if ext in IMAGE_EXTENSIONS:
         data = _generate_image_thumbnail(abs_path)
+        if data:
+            with open(cache_path, "wb") as f:
+                f.write(data)
+            return HttpResponse(data, content_type="image/jpeg")
+    elif ext in VIDEO_EXTENSIONS:
+        data = _generate_video_thumbnail(abs_path)
         if data:
             with open(cache_path, "wb") as f:
                 f.write(data)
