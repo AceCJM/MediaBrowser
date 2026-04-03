@@ -199,7 +199,12 @@ def serve_media(request, library_id, filepath):
 
     mime_type = mimetypes.guess_type(abs_path)[0] or "application/octet-stream"
 
-    response = FileResponse(open(abs_path, "rb"), content_type=mime_type)
+    file_handle = open(abs_path, "rb")
+    try:
+        response = FileResponse(file_handle, content_type=mime_type)
+    except Exception:
+        file_handle.close()
+        raise
     response["Accept-Ranges"] = "bytes"
     return response
 
@@ -222,7 +227,8 @@ def serve_thumbnail(request, library_id, filepath):
     # Check thumbnail cache
     cache_path = _thumbnail_cache_path(library_id, filepath)
     if os.path.exists(cache_path):
-        return FileResponse(open(cache_path, "rb"), content_type="image/jpeg")
+        with open(cache_path, "rb") as f:
+            return HttpResponse(f.read(), content_type="image/jpeg")
 
     os.makedirs(settings.THUMBNAIL_CACHE_DIR, exist_ok=True)
 
