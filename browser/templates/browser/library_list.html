@@ -1,0 +1,36 @@
+{% extends "browser/base.html" %}
+{% block title %}Libraries – MediaBrowser{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-4">
+  <h2 class="mb-0 me-auto"><i class="bi bi-collection-play me-2"></i>Libraries</h2>
+</div>
+
+{% if libraries %}
+  <div class="row g-3">
+    {% for library in libraries %}
+      <div class="col-12 col-sm-6 col-md-4 col-lg-3">
+        <a href="{% url 'browser:browse_root' library.id %}" class="library-card">
+          <div class="card h-100">
+            <div class="card-body d-flex flex-column gap-2">
+              <div class="library-icon"><i class="bi bi-folder2-open"></i></div>
+              <h5 class="card-title fw-semibold" title="{{ library.name }}">{{ library.name }}</h5>
+              {% if library.description %}
+                <p class="card-text text-muted small mb-0">{{ library.description }}</p>
+              {% endif %}
+              <p class="text-muted small mb-0 mt-auto">
+                <i class="bi bi-hdd me-1"></i><code class="text-muted">{{ library.path }}</code>
+              </p>
+            </div>
+          </div>
+        </a>
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="text-center py-5 text-muted">
+    <i class="bi bi-folder-x" style="font-size:3rem;"></i>
+    <p class="mt-3">No libraries available. Ask an administrator to create one and grant you access.</p>
+  </div>
+{% endif %}
+{% endblock %}

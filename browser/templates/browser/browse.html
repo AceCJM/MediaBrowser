@@ -1,0 +1,103 @@
+{% extends "browser/base.html" %}
+{% block title %}{{ library.name }}{% if current_folder %} / {{ current_folder }}{% endif %} – MediaBrowser{% endblock %}
+
+{% block content %}
+
+{# ── Breadcrumb navigation ─────────────────────────────────────────────────── #}
+<nav aria-label="breadcrumb" class="mb-4">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item">
+      <a href="{% url 'browser:library_list' %}"><i class="bi bi-house-door me-1"></i>Libraries</a>
+    </li>
+    <li class="breadcrumb-item {% if not subpath %}active{% endif %}">
+      {% if subpath %}
+        <a href="{% url 'browser:browse_root' library.id %}">{{ library.name }}</a>
+      {% else %}
+        {{ library.name }}
+      {% endif %}
+    </li>
+    {% for crumb in breadcrumbs %}
+      <li class="breadcrumb-item {% if forloop.last %}active{% endif %}">
+        {% if not forloop.last %}
+          <a href="{% url 'browser:browse' library.id crumb.subpath %}">{{ crumb.name }}</a>
+        {% else %}
+          {{ crumb.name }}
+        {% endif %}
+      </li>
+    {% endfor %}
+  </ol>
+</nav>
+
+{# ── Back button ───────────────────────────────────────────────────────────── #}
+{% if subpath %}
+  <div class="mb-3">
+    {% if parent_subpath %}
+      <a href="{% url 'browser:browse' library.id parent_subpath %}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left me-1"></i>Back
+      </a>
+    {% else %}
+      <a href="{% url 'browser:browse_root' library.id %}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left me-1"></i>Back
+      </a>
+    {% endif %}
+  </div>
+{% endif %}
+
+{# ── Folders ───────────────────────────────────────────────────────────────── #}
+{% if folders %}
+  <p class="section-title"><i class="bi bi-folder me-1"></i>Folders</p>
+  <div class="row g-2 mb-4">
+    {% for folder in folders %}
+      <div class="col-12 col-sm-6 col-md-4 col-lg-3">
+        {% if subpath %}
+          <a href="{% url 'browser:browse' library.id subpath|add:'/'|add:folder %}" class="folder-item">
+        {% else %}
+          <a href="{% url 'browser:browse' library.id folder %}" class="folder-item">
+        {% endif %}
+          <i class="bi bi-folder2-open text-warning"></i>
+          <span class="text-truncate">{{ folder }}</span>
+        </a>
+      </div>
+    {% endfor %}
+  </div>
+{% endif %}
+
+{# ── Media grid ────────────────────────────────────────────────────────────── #}
+{% if media_items %}
+  <p class="section-title"><i class="bi bi-images me-1"></i>Media <span class="text-muted">({{ media_items|length }})</span></p>
+  <div class="row g-3">
+    {% for item in media_items %}
+      <div class="col-6 col-sm-4 col-md-3 col-xl-2">
+        <a href="{% url 'browser:media_player' library.id item.rel_path %}" class="text-decoration-none">
+          <div class="card">
+            <img
+              src="{% url 'browser:serve_thumbnail' library.id item.rel_path %}"
+              class="card-img-top"
+              alt="{{ item.filename }}"
+              loading="lazy"
+            >
+            <div class="card-body py-2 px-2">
+              <p class="card-title" title="{{ item.filename }}">{{ item.filename }}</p>
+              <div class="mt-1">
+                {% if item.is_video %}
+                  <span class="badge badge-video" style="font-size:.65rem;"><i class="bi bi-camera-video me-1"></i>Video</span>
+                {% else %}
+                  <span class="badge badge-image" style="font-size:.65rem;"><i class="bi bi-image me-1"></i>Image</span>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </a>
+      </div>
+    {% endfor %}
+  </div>
+{% endif %}
+
+{% if not folders and not media_items %}
+  <div class="text-center py-5 text-muted">
+    <i class="bi bi-folder-x" style="font-size:3rem;"></i>
+    <p class="mt-3">This folder is empty.</p>
+  </div>
+{% endif %}
+
+{% endblock %}
