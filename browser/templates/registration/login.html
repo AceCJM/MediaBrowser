@@ -2,12 +2,16 @@
 {% block title %}Sign In – MediaBrowser{% endblock %}
 
 {% block content %}
+<style>
+  .form-label { color: var(--mb-text) !important; }
+  .text-muted { color: var(--mb-text-muted) !important; }
+</style>
 <div class="row justify-content-center mt-5">
   <div class="col-12 col-sm-8 col-md-5 col-lg-4">
     <div class="card p-4">
       <div class="text-center mb-4">
         <i class="bi bi-play-circle-fill" style="font-size:2.5rem;color:var(--mb-accent);"></i>
-        <h4 class="mt-2 mb-0 fw-bold">MediaBrowser</h4>
+        <h4 class="mt-2 mb-0 fw-bold" style="color: var(--mb-text);">MediaBrowser</h4>
         <p class="text-muted small">Sign in to access your libraries</p>
       </div>
       <form method="post">
