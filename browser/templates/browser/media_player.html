@@ -1,0 +1,71 @@
+{% extends "browser/base.html" %}
+{% block title %}{{ filename }} – MediaBrowser{% endblock %}
+
+{% block content %}
+
+{# ── Back button ───────────────────────────────────────────────────────────── #}
+<div class="mb-3">
+  {% if parent_subpath %}
+    <a href="{% url 'browser:browse' library.id parent_subpath %}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-arrow-left me-1"></i>Back to folder
+    </a>
+  {% else %}
+    <a href="{% url 'browser:browse_root' library.id %}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-arrow-left me-1"></i>Back to {{ library.name }}
+    </a>
+  {% endif %}
+</div>
+
+{# ── Breadcrumb ────────────────────────────────────────────────────────────── #}
+<nav aria-label="breadcrumb" class="mb-4">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item">
+      <a href="{% url 'browser:library_list' %}"><i class="bi bi-house-door me-1"></i>Libraries</a>
+    </li>
+    <li class="breadcrumb-item">
+      <a href="{% url 'browser:browse_root' library.id %}">{{ library.name }}</a>
+    </li>
+    {% if parent_subpath %}
+      <li class="breadcrumb-item">
+        <a href="{% url 'browser:browse' library.id parent_subpath %}">{{ parent_subpath }}</a>
+      </li>
+    {% endif %}
+    <li class="breadcrumb-item active">{{ filename }}</li>
+  </ol>
+</nav>
+
+{# ── Player ────────────────────────────────────────────────────────────────── #}
+<div class="row justify-content-center">
+  <div class="col-12 col-lg-10 col-xl-8">
+    <div class="card p-3">
+      {% if is_video %}
+        <video
+          controls
+          autoplay
+          class="w-100 rounded"
+          style="max-height: 70vh; background: #000;"
+          preload="metadata"
+        >
+          <source src="{% url 'browser:serve_media' library.id filepath %}" type="{{ mime_type }}">
+          Your browser does not support the video tag.
+        </video>
+      {% elif is_image %}
+        <img
+          src="{% url 'browser:serve_media' library.id filepath %}"
+          class="img-fluid rounded mx-auto d-block"
+          style="max-height: 80vh;"
+          alt="{{ filename }}"
+        >
+      {% endif %}
+      <div class="mt-3 px-1">
+        <h5 class="mb-1" style="word-break:break-word;">{{ filename }}</h5>
+        <p class="text-muted small mb-0">
+          <i class="bi bi-folder me-1"></i>
+          {% if parent_subpath %}{{ library.name }} / {{ parent_subpath }}{% else %}{{ library.name }}{% endif %}
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

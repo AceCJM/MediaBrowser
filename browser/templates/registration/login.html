@@ -1,0 +1,45 @@
+{% extends "browser/base.html" %}
+{% block title %}Sign In – MediaBrowser{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center mt-5">
+  <div class="col-12 col-sm-8 col-md-5 col-lg-4">
+    <div class="card p-4">
+      <div class="text-center mb-4">
+        <i class="bi bi-play-circle-fill" style="font-size:2.5rem;color:var(--mb-accent);"></i>
+        <h4 class="mt-2 mb-0 fw-bold">MediaBrowser</h4>
+        <p class="text-muted small">Sign in to access your libraries</p>
+      </div>
+      <form method="post">
+        {% csrf_token %}
+        {% if form.errors %}
+          <div class="alert alert-danger py-2 small">Invalid username or password.</div>
+        {% endif %}
+        <div class="mb-3">
+          <label for="{{ form.username.id_for_label }}" class="form-label small">Username</label>
+          <input
+            type="text"
+            name="{{ form.username.html_name }}"
+            id="{{ form.username.id_for_label }}"
+            class="form-control bg-dark text-light border-secondary"
+            autofocus
+            required
+          >
+        </div>
+        <div class="mb-4">
+          <label for="{{ form.password.id_for_label }}" class="form-label small">Password</label>
+          <input
+            type="password"
+            name="{{ form.password.html_name }}"
+            id="{{ form.password.id_for_label }}"
+            class="form-control bg-dark text-light border-secondary"
+            required
+          >
+        </div>
+        <input type="hidden" name="next" value="{{ next }}">
+        <button type="submit" class="btn btn-primary w-100">Sign in</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
