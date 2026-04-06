@@ -28,6 +28,65 @@
   </ol>
 </nav>
 
+{# ── Sorting controls ──────────────────────────────────────────────────────── #}
+<div class="mb-4">
+  <div class="d-flex align-items-center gap-2">
+    <span class="text-muted fw-semibold">Sort by:</span>
+    <div class="btn-group btn-group-sm" role="group">
+      {# Name sorting #}
+      {% if sort_by == 'name' %}
+        {% if sort_order == 'asc' %}
+          <a href="?{% if subpath %}subpath={{ subpath }}&{% endif %}sort=name&order=desc" class="btn btn-outline-primary active">
+            <i class="bi bi-alphabet me-1"></i>Name <i class="bi bi-chevron-up ms-1"></i>
+          </a>
+        {% else %}
+          <a href="?{% if subpath %}subpath={{ subpath }}&{% endif %}sort=name&order=asc" class="btn btn-outline-primary active">
+            <i class="bi bi-alphabet me-1"></i>Name <i class="bi bi-chevron-down ms-1"></i>
+          </a>
+        {% endif %}
+      {% else %}
+        <a href="?{% if subpath %}subpath={{ subpath }}&{% endif %}sort=name&order=asc" class="btn btn-outline-primary">
+          <i class="bi bi-alphabet me-1"></i>Name
+        </a>
+      {% endif %}
+
+      {# Date sorting #}
+      {% if sort_by == 'date' %}
+        {% if sort_order == 'asc' %}
+          <a href="?{% if subpath %}subpath={{ subpath }}&{% endif %}sort=date&order=desc" class="btn btn-outline-primary active">
+            <i class="bi bi-calendar me-1"></i>Date Modified <i class="bi bi-chevron-up ms-1"></i>
+          </a>
+        {% else %}
+          <a href="?{% if subpath %}subpath={{ subpath }}&{% endif %}sort=date&order=asc" class="btn btn-outline-primary active">
+            <i class="bi bi-calendar me-1"></i>Date Modified <i class="bi bi-chevron-down ms-1"></i>
+          </a>
+        {% endif %}
+      {% else %}
+        <a href="?{% if subpath %}subpath={{ subpath }}&{% endif %}sort=date&order=asc" class="btn btn-outline-primary">
+          <i class="bi bi-calendar me-1"></i>Date Modified
+        </a>
+      {% endif %}
+
+      {# Size sorting #}
+      {% if sort_by == 'size' %}
+        {% if sort_order == 'asc' %}
+          <a href="?{% if subpath %}subpath={{ subpath }}&{% endif %}sort=size&order=desc" class="btn btn-outline-primary active">
+            <i class="bi bi-file-earmark me-1"></i>Size <i class="bi bi-chevron-up ms-1"></i>
+          </a>
+        {% else %}
+          <a href="?{% if subpath %}subpath={{ subpath }}&{% endif %}sort=size&order=asc" class="btn btn-outline-primary active">
+            <i class="bi bi-file-earmark me-1"></i>Size <i class="bi bi-chevron-down ms-1"></i>
+          </a>
+        {% endif %}
+      {% else %}
+        <a href="?{% if subpath %}subpath={{ subpath }}&{% endif %}sort=size&order=asc" class="btn btn-outline-primary">
+          <i class="bi bi-file-earmark me-1"></i>Size
+        </a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
 {# ── Back button ───────────────────────────────────────────────────────────── #}
 {% if subpath %}
   <div class="mb-3">

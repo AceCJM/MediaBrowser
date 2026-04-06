@@ -44,12 +44,12 @@ def _get_accessible_library(user, library_id):
     return library
 
 
-def _list_directory(abs_path):
+def _list_directory(abs_path, sort_by='name', sort_order='asc'):
     """Return (folders, media_files) sorted lists for abs_path."""
     folders = []
     media_files = []
     try:
-        entries = sorted(os.scandir(abs_path), key=lambda e: e.name.lower())
+        entries = list(os.scandir(abs_path))  # Convert to list so we can sort it
     except PermissionError:
         return folders, media_files
 
@@ -80,6 +80,27 @@ def _list_directory(abs_path):
     for filename in all_files:
         if filename not in converted_files:
             media_files.append(filename)
+
+    # Sort folders
+    folders.sort(key=lambda x: x.lower() if sort_by == 'name' else x, reverse=(sort_order == 'desc'))
+
+    # Sort media files
+    if sort_by == 'name':
+        media_files.sort(key=lambda x: x.lower(), reverse=(sort_order == 'desc'))
+    elif sort_by == 'size':
+        def get_file_size(filename):
+            try:
+                return os.path.getsize(os.path.join(abs_path, filename))
+            except OSError:
+                return 0
+        media_files.sort(key=get_file_size, reverse=(sort_order == 'desc'))
+    elif sort_by == 'date':
+        def get_file_mtime(filename):
+            try:
+                return os.path.getmtime(os.path.join(abs_path, filename))
+            except OSError:
+                return 0
+        media_files.sort(key=get_file_mtime, reverse=(sort_order == 'desc'))
 
     return folders, media_files
 
@@ -237,7 +258,17 @@ def browse(request, library_id, subpath=""):
     if not os.path.isdir(abs_path):
         raise Http404("Directory not found")
 
-    folders, media_files = _list_directory(abs_path)
+    # Get sorting parameters from request
+    sort_by = request.GET.get('sort', 'name')
+    sort_order = request.GET.get('order', 'asc')
+    
+    # Validate parameters
+    if sort_by not in ['name', 'date', 'size']:
+        sort_by = 'name'
+    if sort_order not in ['asc', 'desc']:
+        sort_order = 'asc'
+
+    folders, media_files = _list_directory(abs_path, sort_by=sort_by, sort_order=sort_order)
 
     # Build breadcrumbs
     parts = [p for p in subpath.split("/") if p]
@@ -271,6 +302,8 @@ def browse(request, library_id, subpath=""):
         "media_items": media_items,
         "breadcrumbs": breadcrumbs,
         "parent_subpath": parent_subpath,
+        "sort_by": sort_by,
+        "sort_order": sort_order,
     }
     return render(request, "browser/browse.html", context)
 
