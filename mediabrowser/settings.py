@@ -124,8 +124,31 @@ LOGOUT_REDIRECT_URL = '/accounts/login/'
 # Thumbnail cache directory (inside BASE_DIR, not served publicly)
 THUMBNAIL_CACHE_DIR = BASE_DIR / 'thumbnail_cache'
 
-# Default primary key field type
-# https://docs.djangoproject.com/en/6.0/ref/settings/#default-auto-field
-
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+# Logging configuration
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'filters': {
+        'suppress_broken_pipe': {
+            '()': 'browser.logging.SuppressBrokenPipeFilter',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'filters': ['suppress_broken_pipe'],
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO',
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
+}
 

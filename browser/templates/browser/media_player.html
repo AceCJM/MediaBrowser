@@ -39,16 +39,33 @@
   <div class="col-12 col-lg-10 col-xl-8">
     <div class="card p-3">
       {% if is_video %}
-        <video
-          controls
-          autoplay
-          class="w-100 rounded"
-          style="max-height: 70vh; background: #000;"
-          preload="metadata"
-        >
-          <source src="{% url 'browser:serve_media' library.id filepath %}" type="{{ mime_type }}">
-          Your browser does not support the video tag.
-        </video>
+        {% if is_mpeg_ts %}
+          <!-- MPEG-TS files are not supported by HTML5 video -->
+          <div class="alert alert-warning" role="alert">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            <strong>MPEG-TS Format Detected</strong><br>
+            This video uses the MPEG Transport Stream format, which is not natively supported by web browsers.
+            You can download the file to play it in a compatible media player.
+          </div>
+          <div class="text-center my-4">
+            <a href="{% url 'browser:serve_media' library.id filepath %}" 
+               class="btn btn-primary btn-lg" 
+               download="{{ filename }}">
+              <i class="bi bi-download me-2"></i>Download Video
+            </a>
+          </div>
+        {% else %}
+          <video
+            controls
+            autoplay
+            class="w-100 rounded"
+            style="max-height: 70vh; background: #000;"
+            preload="metadata"
+          >
+            <source src="{% url 'browser:serve_media' library.id filepath %}" type="{{ mime_type }}">
+            Your browser does not support the video tag.
+          </video>
+        {% endif %}
       {% elif is_image %}
         <img
           src="{% url 'browser:serve_media' library.id filepath %}"

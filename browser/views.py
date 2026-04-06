@@ -20,7 +20,7 @@ except ImportError:
 # ── constants ────────────────────────────────────────────────────────────────
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".tiff", ".tif"}
-VIDEO_EXTENSIONS = {".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".m4v", ".ogv"}
+VIDEO_EXTENSIONS = {".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".m4v", ".ogv", ".ts", ".mts", ".m2ts"}
 MEDIA_EXTENSIONS = IMAGE_EXTENSIONS | VIDEO_EXTENSIONS
 
 THUMBNAIL_SIZE = (320, 180)
@@ -283,9 +283,11 @@ def media_player(request, library_id, filepath):
     # Get video metadata if it's a video
     video_metadata = None
     codec_info = None
+    is_mpeg_ts = False
     if ext in VIDEO_EXTENSIONS:
         video_metadata = _get_video_metadata(abs_path)
         codec_info = _get_video_codec_info(abs_path)
+        is_mpeg_ts = ext in {".ts", ".mts", ".m2ts"}
 
     context = {
         "library": library,
@@ -294,6 +296,7 @@ def media_player(request, library_id, filepath):
         "parent_subpath": parent_subpath,
         "is_video": ext in VIDEO_EXTENSIONS,
         "is_image": ext in IMAGE_EXTENSIONS,
+        "is_mpeg_ts": is_mpeg_ts,
         "mime_type": mime_type,
         "file_size": file_size,
         "video_metadata": video_metadata,
@@ -317,16 +320,22 @@ def serve_media(request, library_id, filepath):
     if ext not in MEDIA_EXTENSIONS:
         raise Http404("Unsupported media type")
 
-    mime_type = mimetypes.guess_type(abs_path)[0] or "application/octet-stream"
+    # Determine MIME type with special handling for MPEG-TS
+    if ext in {".ts", ".mts", ".m2ts"}:
+        mime_type = "video/MP2T"
+        is_mpeg_ts = True
+    else:
+        mime_type = mimetypes.guess_type(abs_path)[0] or "application/octet-stream"
+        is_mpeg_ts = False
 
-    file_handle = open(abs_path, "rb")
     try:
+        file_handle = open(abs_path, "rb")
         response = FileResponse(file_handle, content_type=mime_type)
-    except Exception:
-        file_handle.close()
-        raise
-    response["Accept-Ranges"] = "bytes"
-    return response
+        response["Accept-Ranges"] = "bytes"
+        return response
+    except (OSError, IOError) as e:
+        # Handle file access errors
+        raise Http404("File not accessible")
 
 
 @login_required
