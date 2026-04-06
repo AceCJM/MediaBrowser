@@ -2,6 +2,7 @@
 {% block title %}{{ library.name }}{% if current_folder %} / {{ current_folder }}{% endif %} – MediaBrowser{% endblock %}
 
 {% block content %}
+{% csrf_token %}
 
 {# ── Breadcrumb navigation ─────────────────────────────────────────────────── #}
 <nav aria-label="breadcrumb" class="mb-4">
@@ -30,60 +31,67 @@
 
 {# ── Sorting controls ──────────────────────────────────────────────────────── #}
 <div class="mb-4">
-  <div class="d-flex align-items-center gap-2">
-    <span class="text-muted fw-semibold">Sort by:</span>
-    <div class="btn-group btn-group-sm" role="group">
-      {# Name sorting #}
-      {% if sort_by == 'name' %}
-        {% if sort_order == 'asc' %}
-          <a href="?{% if subpath %}subpath={{ subpath }}&{% endif %}sort=name&order=desc" class="btn btn-outline-primary active">
-            <i class="bi bi-alphabet me-1"></i>Name <i class="bi bi-chevron-up ms-1"></i>
-          </a>
+  <div class="d-flex align-items-center justify-content-between">
+    <div class="d-flex align-items-center gap-2">
+      <span class="text-muted fw-semibold">Sort by:</span>
+      <div class="btn-group btn-group-sm" role="group">
+        {# Name sorting #}
+        {% if sort_by == 'name' %}
+          {% if sort_order == 'asc' %}
+            <a href="?{% if subpath %}subpath={{ subpath }}&{% endif %}sort=name&order=desc" class="btn btn-outline-primary active">
+              <i class="bi bi-alphabet me-1"></i>Name <i class="bi bi-chevron-up ms-1"></i>
+            </a>
+          {% else %}
+            <a href="?{% if subpath %}subpath={{ subpath }}&{% endif %}sort=name&order=asc" class="btn btn-outline-primary active">
+              <i class="bi bi-alphabet me-1"></i>Name <i class="bi bi-chevron-down ms-1"></i>
+            </a>
+          {% endif %}
         {% else %}
-          <a href="?{% if subpath %}subpath={{ subpath }}&{% endif %}sort=name&order=asc" class="btn btn-outline-primary active">
-            <i class="bi bi-alphabet me-1"></i>Name <i class="bi bi-chevron-down ms-1"></i>
+          <a href="?{% if subpath %}subpath={{ subpath }}&{% endif %}sort=name&order=asc" class="btn btn-outline-primary">
+            <i class="bi bi-alphabet me-1"></i>Name
           </a>
         {% endif %}
-      {% else %}
-        <a href="?{% if subpath %}subpath={{ subpath }}&{% endif %}sort=name&order=asc" class="btn btn-outline-primary">
-          <i class="bi bi-alphabet me-1"></i>Name
-        </a>
-      {% endif %}
 
-      {# Date sorting #}
-      {% if sort_by == 'date' %}
-        {% if sort_order == 'asc' %}
-          <a href="?{% if subpath %}subpath={{ subpath }}&{% endif %}sort=date&order=desc" class="btn btn-outline-primary active">
-            <i class="bi bi-calendar me-1"></i>Date Modified <i class="bi bi-chevron-up ms-1"></i>
-          </a>
+        {# Date sorting #}
+        {% if sort_by == 'date' %}
+          {% if sort_order == 'asc' %}
+            <a href="?{% if subpath %}subpath={{ subpath }}&{% endif %}sort=date&order=desc" class="btn btn-outline-primary active">
+              <i class="bi bi-calendar me-1"></i>Date Modified <i class="bi bi-chevron-up ms-1"></i>
+            </a>
+          {% else %}
+            <a href="?{% if subpath %}subpath={{ subpath }}&{% endif %}sort=date&order=asc" class="btn btn-outline-primary active">
+              <i class="bi bi-calendar me-1"></i>Date Modified <i class="bi bi-chevron-down ms-1"></i>
+            </a>
+          {% endif %}
         {% else %}
-          <a href="?{% if subpath %}subpath={{ subpath }}&{% endif %}sort=date&order=asc" class="btn btn-outline-primary active">
-            <i class="bi bi-calendar me-1"></i>Date Modified <i class="bi bi-chevron-down ms-1"></i>
+          <a href="?{% if subpath %}subpath={{ subpath }}&{% endif %}sort=date&order=asc" class="btn btn-outline-primary">
+            <i class="bi bi-calendar me-1"></i>Date Modified
           </a>
         {% endif %}
-      {% else %}
-        <a href="?{% if subpath %}subpath={{ subpath }}&{% endif %}sort=date&order=asc" class="btn btn-outline-primary">
-          <i class="bi bi-calendar me-1"></i>Date Modified
-        </a>
-      {% endif %}
 
-      {# Size sorting #}
-      {% if sort_by == 'size' %}
-        {% if sort_order == 'asc' %}
-          <a href="?{% if subpath %}subpath={{ subpath }}&{% endif %}sort=size&order=desc" class="btn btn-outline-primary active">
-            <i class="bi bi-file-earmark me-1"></i>Size <i class="bi bi-chevron-up ms-1"></i>
-          </a>
+        {# Size sorting #}
+        {% if sort_by == 'size' %}
+          {% if sort_order == 'asc' %}
+            <a href="?{% if subpath %}subpath={{ subpath }}&{% endif %}sort=size&order=desc" class="btn btn-outline-primary active">
+              <i class="bi bi-file-earmark me-1"></i>Size <i class="bi bi-chevron-up ms-1"></i>
+            </a>
+          {% else %}
+            <a href="?{% if subpath %}subpath={{ subpath }}&{% endif %}sort=size&order=asc" class="btn btn-outline-primary active">
+              <i class="bi bi-file-earmark me-1"></i>Size <i class="bi bi-chevron-down ms-1"></i>
+            </a>
+          {% endif %}
         {% else %}
-          <a href="?{% if subpath %}subpath={{ subpath }}&{% endif %}sort=size&order=asc" class="btn btn-outline-primary active">
-            <i class="bi bi-file-earmark me-1"></i>Size <i class="bi bi-chevron-down ms-1"></i>
+          <a href="?{% if subpath %}subpath={{ subpath }}&{% endif %}sort=size&order=asc" class="btn btn-outline-primary">
+            <i class="bi bi-file-earmark me-1"></i>Size
           </a>
         {% endif %}
-      {% else %}
-        <a href="?{% if subpath %}subpath={{ subpath }}&{% endif %}sort=size&order=asc" class="btn btn-outline-primary">
-          <i class="bi bi-file-earmark me-1"></i>Size
-        </a>
-      {% endif %}
+      </div>
     </div>
+
+    {# Download button #}
+    <button type="button" class="btn btn-success" onclick="showDownloadModal()">
+      <i class="bi bi-cloud-download me-1"></i>Download Videos
+    </button>
   </div>
 </div>
 
@@ -159,4 +167,242 @@
   </div>
 {% endif %}
 
+{# ── Download Modal ────────────────────────────────────────────────────────── #}
+<div class="modal fade" id="downloadModal" tabindex="-1" aria-labelledby="downloadModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="downloadModalLabel">
+          <i class="bi bi-cloud-download me-2"></i>Download Internet Videos
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-3">Enter video URLs to download to this folder. Supports YouTube, Vimeo, and many other sites.</p>
+
+        <div class="mb-3">
+          <label for="videoUrls" class="form-label">Video URLs (one per line)</label>
+          <textarea class="form-control" id="videoUrls" rows="6"
+                    placeholder="https://www.youtube.com/watch?v=...&#10;https://vimeo.com/...&#10;https://..."></textarea>
+          <div class="form-text">
+            Enter one URL per line. Supports YouTube, Vimeo, Dailymotion, and hundreds of other sites.
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="col-md-6">
+            <div class="mb-3">
+              <label for="videoQuality" class="form-label">Video Quality</label>
+              <select class="form-select" id="videoQuality">
+                <option value="best">Best Quality</option>
+                <option value="1080p" selected>1080p (FHD)</option>
+                <option value="720p">720p (HD)</option>
+                <option value="480p">480p (SD)</option>
+                <option value="360p">360p</option>
+                <option value="worst">Worst Quality</option>
+              </select>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="mb-3">
+              <label for="videoFormat" class="form-label">Preferred Format</label>
+              <select class="form-select" id="videoFormat">
+                <option value="mp4" selected>MP4</option>
+                <option value="mkv">MKV</option>
+                <option value="webm">WebM</option>
+                <option value="best">Best Available</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="downloadAudio" checked>
+            <label class="form-check-label" for="downloadAudio">
+              Include audio (recommended)
+            </label>
+          </div>
+        </div>
+
+        <div id="downloadProgress" class="d-none">
+          <div class="mb-2">
+            <div class="progress">
+              <div class="progress-bar" role="progressbar" style="width: 0%"></div>
+            </div>
+          </div>
+          <div id="downloadStatus" class="text-muted small"></div>
+          <div id="currentDownload" class="mt-2 fw-semibold"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-success" id="startDownloadBtn" onclick="startDownload()">
+          <i class="bi bi-play-circle me-1"></i>Start Download
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script>
+// Initialize CSRF token on page load
+document.addEventListener('DOMContentLoaded', function() {
+  // Try multiple ways to get CSRF token
+  window.CSRF_TOKEN = 
+    document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
+    document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ||
+    document.querySelector('input[name="csrfmiddlewaretoken"]')?.value ||
+    '';
+});
+
+// Show download modal
+function showDownloadModal() {
+  document.getElementById('videoUrls').value = '';
+  document.getElementById('downloadProgress').classList.add('d-none');
+  document.getElementById('startDownloadBtn').disabled = false;
+  document.getElementById('currentDownload').textContent = '';
+
+  const modal = new bootstrap.Modal(document.getElementById('downloadModal'));
+  modal.show();
+}
+
+async function startDownload() {
+  const urls = document.getElementById('videoUrls').value.trim();
+  const quality = document.getElementById('videoQuality').value;
+  const format = document.getElementById('videoFormat').value;
+  const includeAudio = document.getElementById('downloadAudio').checked;
+
+  if (!urls) {
+    alert('Please enter at least one video URL.');
+    return;
+  }
+
+  const urlList = urls.split('\n').map(url => url.trim()).filter(url => url);
+
+  if (urlList.length === 0) {
+    alert('Please enter valid URLs.');
+    return;
+  }
+
+  // Disable start button and show progress
+  document.getElementById('startDownloadBtn').disabled = true;
+  document.getElementById('downloadProgress').classList.remove('d-none');
+
+  const progressBar = document.querySelector('.progress-bar');
+  const statusDiv = document.getElementById('downloadStatus');
+  const currentDiv = document.getElementById('currentDownload');
+
+  try {
+    // Start download via AJAX
+    const response = await fetch('{% url "browser:download_videos" library.id %}', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': window.CSRF_TOKEN || document.querySelector('[name=csrfmiddlewaretoken]')?.value || ''
+      },
+      body: JSON.stringify({
+        urls: urlList,
+        subpath: '{{ subpath }}',
+        quality: quality,
+        format: format,
+        include_audio: includeAudio
+      })
+    });
+
+    if (!response.ok) {
+      if (response.status === 403 || response.status === 302) {
+        // Redirect to login if not authenticated
+        window.location.href = '/accounts/login/?next=' + encodeURIComponent(window.location.pathname);
+        return;
+      }
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const result = await response.json();
+
+    if (result.success) {
+      // Update active downloads panel immediately
+      if (typeof updateActiveDownloads === 'function') {
+        updateActiveDownloads();
+      }
+      // Poll for progress updates
+      pollDownloadProgress(result.download_id);
+    } else {
+      throw new Error(result.error || 'Download failed');
+    }
+
+  } catch (error) {
+    console.error('Download error:', error);
+    statusDiv.textContent = `Error: ${error.message}`;
+    progressBar.style.width = '0%';
+    progressBar.classList.add('bg-danger');
+    document.getElementById('startDownloadBtn').disabled = false;
+  }
+}
+
+// Poll for download progress
+function pollDownloadProgress(downloadId) {
+  const progressBar = document.querySelector('.progress-bar');
+  const statusDiv = document.getElementById('downloadStatus');
+  const currentDiv = document.getElementById('currentDownload');
+
+  const poll = async () => {
+    try {
+      const response = await fetch(`{% url "browser:download_progress" library.id %}?download_id=${downloadId}`);
+      
+      if (!response.ok) {
+        if (response.status === 403 || response.status === 302) {
+          window.location.href = '/accounts/login/?next=' + encodeURIComponent(window.location.pathname);
+          return;
+        }
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const progress = await response.json();
+
+      progressBar.style.width = `${progress.percent}%`;
+
+      if (progress.current_video) {
+        currentDiv.textContent = `Downloading: ${progress.current_video}`;
+      }
+
+      statusDiv.textContent = progress.status;
+
+      if (progress.completed) {
+        progressBar.classList.remove('bg-danger');
+        progressBar.classList.add('bg-success');
+        statusDiv.textContent = `Download completed! ${progress.downloaded_count} videos downloaded.`;
+        currentDiv.textContent = '';
+
+        // Close modal after a delay
+        setTimeout(() => {
+          bootstrap.Modal.getInstance(document.getElementById('downloadModal')).hide();
+          // Refresh the page to show new videos
+          location.reload();
+        }, 3000);
+      } else if (progress.error) {
+        progressBar.classList.add('bg-danger');
+        statusDiv.textContent = `Error: ${progress.error}`;
+        currentDiv.textContent = '';
+        document.getElementById('startDownloadBtn').disabled = false;
+      } else {
+        // Continue polling
+        setTimeout(poll, 1000); // Poll every second for faster updates
+      }
+    } catch (error) {
+      console.error('Progress poll error:', error);
+      statusDiv.textContent = 'Error checking progress';
+      currentDiv.textContent = '';
+      document.getElementById('startDownloadBtn').disabled = false;
+    }
+  };
+
+  poll();
+}
+</script>
 {% endblock %}

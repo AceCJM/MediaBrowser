@@ -4,11 +4,18 @@ import mimetypes
 import os
 import subprocess
 import json
+import threading
+import shutil
+import uuid
+import re
+import time
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
-from django.http import Http404, HttpResponse, FileResponse
+from django.http import Http404, HttpResponse, FileResponse, JsonResponse
 from django.shortcuts import get_object_or_404, render
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
 
 from .models import Library
 
@@ -470,3 +477,397 @@ def _video_placeholder_response():
         "</svg>"
     )
     return HttpResponse(svg, content_type="image/svg+xml")
+
+
+# ── Internet Video Download functionality ─────────────────────────────────────
+
+# Global download progress tracking
+active_downloads_dict = {}
+
+@login_required
+@csrf_exempt
+def download_videos(request, library_id):
+    """Start downloading videos from internet URLs."""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Method not allowed'}, status=405)
+
+    library = _get_accessible_library(request.user, library_id)
+
+    try:
+        data = json.loads(request.body)
+        urls = data.get('urls', [])
+        subpath = data.get('subpath', '')
+        quality = data.get('quality', '1080p')
+        format_preference = data.get('format', 'mp4')
+        include_audio = data.get('include_audio', True)
+
+        if not urls:
+            return JsonResponse({'success': False, 'error': 'No URLs provided'})
+
+        # Generate unique download ID
+        download_id = str(uuid.uuid4())
+
+        # Initialize progress tracking with timestamps
+
+        active_downloads_dict[download_id] = {
+            'id': download_id,
+            'total': len(urls),
+            'completed': 0,
+            'status': 'Starting download...',
+            'current_video': None,
+            'completed_files': [],
+            'error': None,
+            'start_time': time.time(),
+            'last_update': time.time(),
+            'estimated_completion': None,
+            'library_id': library_id,
+            'user': request.user.username,
+            'current_progress': 0.0,
+            'cancelled': False
+        }
+
+        # Start download in background thread
+        thread = threading.Thread(
+            target=_perform_video_downloads,
+            args=(download_id, library, urls, subpath, quality, format_preference, include_audio)
+        )
+        thread.daemon = True
+        thread.start()
+
+        return JsonResponse({
+            'success': True,
+            'download_id': download_id,
+            'message': f'Started downloading {len(urls)} videos'
+        })
+
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+
+def _perform_video_downloads(download_id, library, urls, subpath, quality, format_preference, include_audio):
+    """Perform the actual video downloads using yt-dlp."""
+    try:
+
+
+        # Determine download directory
+        if subpath:
+            download_dir = _safe_join(library.path, subpath)
+        else:
+            download_dir = os.path.realpath(library.path)
+
+        # Ensure directory exists
+        os.makedirs(download_dir, exist_ok=True)
+
+        # Update progress
+        active_downloads_dict[download_id]['status'] = f'Downloading to: {download_dir}'
+        active_downloads_dict[download_id]['last_update'] = time.time()
+
+        errors = []
+        start_time = time.time()
+
+        for i, url in enumerate(urls):
+            video_start_time = time.time()
+            try:
+                active_downloads_dict[download_id]['current_video'] = url
+                active_downloads_dict[download_id]['status'] = f'Downloading video {i+1}/{len(urls)}'
+                active_downloads_dict[download_id]['last_update'] = time.time()
+
+                # Download the video using yt-dlp
+                success, filename = _download_single_video(url, download_dir, quality, format_preference, include_audio, download_id)
+
+                if success and filename:
+                    active_downloads_dict[download_id]['completed'] += 1
+                    active_downloads_dict[download_id]['completed_files'].append(filename)
+                    active_downloads_dict[download_id]['status'] = f'Completed {active_downloads_dict[download_id]["completed"]}/{len(urls)} videos'
+
+                    # Calculate estimated completion time
+                    elapsed = time.time() - start_time
+                    completed = active_downloads_dict[download_id]['completed']
+                    if completed > 0:
+                        avg_time_per_video = elapsed / completed
+                        remaining = len(urls) - completed
+                        estimated_remaining = avg_time_per_video * remaining
+                        active_downloads_dict[download_id]['estimated_completion'] = time.time() + estimated_remaining
+                else:
+                    errors.append(f"Failed to download: {url}")
+
+            except Exception as e:
+                errors.append(f"Error downloading {url}: {str(e)}")
+
+            active_downloads_dict[download_id]['last_update'] = time.time()
+
+        # Final status
+        if errors:
+            active_downloads_dict[download_id]['error'] = '; '.join(errors[:3])  # Show first 3 errors
+            active_downloads_dict[download_id]['status'] = f'Completed with {len(errors)} errors'
+        else:
+            active_downloads_dict[download_id]['status'] = f'Successfully downloaded {len(urls)} videos'
+
+        active_downloads_dict[download_id]['current_video'] = None
+        active_downloads_dict[download_id]['last_update'] = time.time()
+
+    except Exception as e:
+        active_downloads_dict[download_id]['error'] = str(e)
+        active_downloads_dict[download_id]['status'] = 'Download failed'
+        active_downloads_dict[download_id]['current_video'] = None
+        active_downloads_dict[download_id]['last_update'] = time.time()
+
+
+def _download_single_video(url, download_dir, quality, format_preference, include_audio, download_id=None):
+    """Download a single video using yt-dlp with real-time progress tracking."""
+    try:
+        # Build yt-dlp command
+        cmd = ['yt-dlp']
+
+        # Output template
+        cmd.extend(['-o', os.path.join(download_dir, '%(title)s.%(ext)s')])
+
+        # Quality settings
+        if quality == 'best':
+            cmd.append('-f', 'bestvideo+bestaudio/best')
+        elif quality == 'worst':
+            cmd.append('-f', 'worstvideo+worstaudio/worst')
+        else:
+            # Map quality to yt-dlp format
+            quality_map = {
+                '1080p': 'bestvideo[height<=1080]+bestaudio/best[height<=1080]',
+                '720p': 'bestvideo[height<=720]+bestaudio/best[height<=720]',
+                '480p': 'bestvideo[height<=480]+bestaudio/best[height<=480]',
+                '360p': 'bestvideo[height<=360]+bestaudio/best[height<=360]'
+            }
+            format_spec = quality_map.get(quality, 'bestvideo[height<=1080]+bestaudio/best[height<=1080]')
+            cmd.extend(['-f', format_spec])
+
+        # Format preference
+        if format_preference != 'best':
+            cmd.extend(['--merge-output-format', format_preference])
+
+        # Audio settings
+        if not include_audio:
+            cmd.append('--video-only')
+
+        # Progress and output options
+        cmd.extend([
+            '--no-playlist',  # Don't download playlists
+            '--embed-subs',   # Embed subtitles if available
+            '--add-metadata', # Add metadata to file
+            '--no-overwrites', # Don't overwrite existing files
+            '--restrict-filenames', # Restrict filenames to ASCII
+            '--progress',     # Show progress
+            '--newline',      # Use newlines for progress
+        ])
+
+        # Add the URL
+        cmd.append(url)
+
+        # Run yt-dlp with real-time progress monitoring
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            universal_newlines=True
+        )
+
+        # Track progress in real-time
+        current_progress = 0
+        filename = None
+
+        while True:
+            if download_id and download_id in active_downloads_dict and active_downloads_dict[download_id].get('cancelled', False):
+                # Download was cancelled
+                process.terminate()
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                return False, None
+
+            line = process.stdout.readline()
+            if not line and process.poll() is not None:
+                break
+
+            line = line.strip()
+            if not line:
+                continue
+
+            # Parse progress from yt-dlp output
+            if '[download]' in line and '%' in line:
+                try:
+                    # Extract percentage from lines like "[download] 45.2% of 100.0MiB at 1.2MiB/s ETA 01:23"
+                    percent_match = re.search(r'(\d+(?:\.\d+)?)%', line)
+                    if percent_match:
+                        current_progress = float(percent_match.group(1))
+                        # Update the current video's progress in the global dict
+                        if download_id and download_id in active_downloads_dict:
+                            active_downloads_dict[download_id]['current_progress'] = current_progress
+                            active_downloads_dict[download_id]['last_update'] = time.time()
+                except (ValueError, AttributeError):
+                    pass
+
+            # Extract filename when download starts
+            if '[download] Destination:' in line and not filename:
+                dest_part = line.split('[download] Destination:')[-1].strip()
+                filename = os.path.basename(dest_part)
+            elif '[Merger]' in line and 'Merging' in line and not filename:
+                merge_part = line.split('Merging formats into')[-1].strip().strip('"')
+                filename = os.path.basename(merge_part)
+
+        # Wait for process to complete
+        return_code = process.wait()
+
+        if return_code == 0:
+            # Ensure final progress is 100%
+            if download_id and download_id in active_downloads_dict:
+                active_downloads_dict[download_id]['current_progress'] = 100.0
+                active_downloads_dict[download_id]['last_update'] = time.time()
+            return True, filename
+        else:
+            print(f"yt-dlp error for {url}: return code {return_code}")
+            return False, None
+
+    except subprocess.TimeoutExpired:
+        return False, None
+    except Exception as e:
+        print(f"Error downloading {url}: {str(e)}")
+        return False, None
+
+
+@login_required
+@csrf_exempt
+def download_progress(request, library_id):
+    """Get download progress for a specific download ID."""
+    library = _get_accessible_library(request.user, library_id)
+
+    download_id = request.GET.get('download_id')
+    if not download_id or download_id not in active_downloads_dict:
+        return JsonResponse({'error': 'Invalid download ID'})
+
+    progress = active_downloads_dict[download_id]
+    total = progress['total']
+    completed = progress['completed']
+    current_progress = progress.get('current_progress', 0.0)
+
+    # Calculate overall progress: completed videos + current video progress
+    if total > 0:
+        overall_progress = (completed / total) * 100
+        if completed < total:  # Still downloading
+            overall_progress += (current_progress / total)
+        percent = min(100, overall_progress)
+    else:
+        percent = 0
+
+    response_data = {
+        'percent': int(percent),
+        'status': progress['status'],
+        'completed': completed >= total,
+        'downloaded_count': completed,
+        'total_count': total,
+        'current_video': progress.get('current_video'),
+        'error': progress.get('error')
+    }
+
+    # Clean up completed downloads after some time
+    if response_data['completed'] or response_data['error']:
+        # Keep progress for 5 minutes after completion
+        def cleanup_progress():
+    
+            time.sleep(300)  # 5 minutes
+            active_downloads_dict.pop(download_id, None)
+
+        cleanup_thread = threading.Thread(target=cleanup_progress)
+        cleanup_thread.daemon = True
+        cleanup_thread.start()
+
+    return JsonResponse(response_data)
+
+
+@login_required
+def active_downloads(request):
+    """Get all active downloads for the current user."""
+
+
+    user_downloads = []
+    current_time = time.time()
+
+    for download_id, progress in active_downloads_dict.items():
+        # Only show downloads for this user
+        if progress.get('user') != request.user.username:
+            continue
+
+        total = progress['total']
+        completed = progress['completed']
+        percent = int((completed / total) * 100) if total > 0 else 0
+
+        # Calculate time remaining
+        time_remaining = None
+        if progress.get('estimated_completion'):
+            remaining_seconds = max(0, progress['estimated_completion'] - current_time)
+            if remaining_seconds > 0:
+                hours = int(remaining_seconds // 3600)
+                minutes = int((remaining_seconds % 3600) // 60)
+                seconds = int(remaining_seconds % 60)
+                if hours > 0:
+                    time_remaining = f"{hours}h {minutes}m"
+                elif minutes > 0:
+                    time_remaining = f"{minutes}m {seconds}s"
+                else:
+                    time_remaining = f"{seconds}s"
+
+        # Calculate elapsed time
+        elapsed_seconds = current_time - progress.get('start_time', current_time)
+        elapsed_minutes = int(elapsed_seconds // 60)
+        elapsed_seconds = int(elapsed_seconds % 60)
+        elapsed_time = f"{elapsed_minutes}m {elapsed_seconds}s"
+
+        user_downloads.append({
+            'id': download_id,
+            'library_id': progress.get('library_id'),
+            'percent': percent,
+            'status': progress['status'],
+            'completed': completed >= total,
+            'downloaded_count': completed,
+            'total_count': total,
+            'current_video': progress.get('current_video'),
+            'error': progress.get('error'),
+            'time_remaining': time_remaining,
+            'elapsed_time': elapsed_time,
+            'start_time': progress.get('start_time'),
+            'last_update': progress.get('last_update')
+        })
+
+    # Sort by start time (newest first)
+    user_downloads.sort(key=lambda x: x['start_time'], reverse=True)
+
+    return JsonResponse({'downloads': user_downloads})
+
+
+@login_required
+@csrf_exempt
+def cancel_download(request):
+    """Cancel an active download."""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Method not allowed'}, status=405)
+
+    try:
+        data = json.loads(request.body)
+        download_id = data.get('download_id')
+
+        if not download_id or download_id not in active_downloads_dict:
+            return JsonResponse({'success': False, 'error': 'Invalid download ID'})
+
+        # Check if the download belongs to the current user
+        progress = active_downloads_dict[download_id]
+        if progress.get('user') != request.user.username:
+            return JsonResponse({'success': False, 'error': 'Access denied'})
+
+        # Mark download as cancelled
+        active_downloads_dict[download_id]['cancelled'] = True
+        active_downloads_dict[download_id]['status'] = 'Cancelling download...'
+        active_downloads_dict[download_id]['last_update'] = time.time()
+
+        return JsonResponse({'success': True, 'message': 'Download cancellation requested'})
+
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})

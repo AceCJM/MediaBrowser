@@ -4,6 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  {% if csrf_token %}<meta name="csrf-token" content="{{ csrf_token }}" />{% endif %}
   <title>{% block title %}MediaBrowser{% endblock %}</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
@@ -67,6 +68,41 @@
       aspect-ratio: 16/9;
       object-fit: cover;
       background: #1a1a2e;
+    }
+
+    /* Active Downloads Panel Styles */
+    #activeDownloadsPanel .card {
+      background-color: var(--mb-card);
+      border: 1px solid var(--mb-border);
+      max-height: 70vh;
+      overflow-y: auto;
+    }
+
+    #activeDownloadsPanel .card-header {
+      background-color: var(--mb-accent) !important;
+      border-bottom: 1px solid var(--mb-border);
+    }
+
+    #activeDownloadsPanel .list-group-item {
+      background-color: var(--mb-card);
+      border-color: var(--mb-border);
+      color: var(--mb-text);
+    }
+
+    #activeDownloadsPanel .list-group-item:hover {
+      background-color: rgba(228, 69, 96, 0.1);
+    }
+
+    #activeDownloadsPanel .progress {
+      background-color: var(--mb-border);
+    }
+
+    #downloadsToggleBtn {
+      transition: all 0.3s ease;
+    }
+
+    #downloadsToggleBtn:hover {
+      transform: scale(1.1);
     }
 
     .folder-item {
@@ -195,7 +231,185 @@
     {% block content %}{% endblock %}
   </main>
 
+  {# ── Active Downloads Panel ──────────────────────────────────────────────── #}
+  {% if user.is_authenticated %}
+  <div id="activeDownloadsPanel" class="position-fixed bottom-0 end-0 p-3" style="z-index: 1050; max-width: 400px; display: none;">
+    <div class="card shadow-lg border-0">
+      <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <h6 class="mb-0"><i class="bi bi-cloud-download me-2"></i>Active Downloads</h6>
+        <button type="button" class="btn-close btn-close-white" onclick="hideDownloadsPanel()"></button>
+      </div>
+      <div class="card-body p-0">
+        <div id="downloadsList" class="list-group list-group-flush">
+          <!-- Downloads will be populated here -->
+        </div>
+      </div>
+      <div class="card-footer text-center">
+        <small class="text-muted">Click to expand • Auto-updates every second</small>
+      </div>
+    </div>
+  </div>
+
+  {# Toggle button for downloads panel #}
+  <button id="downloadsToggleBtn" type="button" class="btn btn-primary position-fixed bottom-0 end-0 m-3 rounded-circle shadow-lg" 
+          style="z-index: 1060; width: 50px; height: 50px; display: none;" 
+          onclick="toggleDownloadsPanel()" 
+          title="Show Active Downloads">
+    <i class="bi bi-cloud-download"></i>
+    <span id="downloadsCount" class="badge bg-danger position-absolute top-0 start-100 translate-middle" style="font-size: 0.7rem;">0</span>
+  </button>
+  {% endif %}
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  
+  {# ── Active Downloads JavaScript ─────────────────────────────────────────── #}
+  {% if user.is_authenticated %}
+  <script>
+    let downloadsPanelVisible = false;
+    let downloadsUpdateInterval;
+
+    function toggleDownloadsPanel() {
+      const panel = document.getElementById('activeDownloadsPanel');
+      if (downloadsPanelVisible) {
+        hideDownloadsPanel();
+      } else {
+        showDownloadsPanel();
+      }
+    }
+
+    function showDownloadsPanel() {
+      const panel = document.getElementById('activeDownloadsPanel');
+      panel.style.display = 'block';
+      downloadsPanelVisible = true;
+      updateActiveDownloads();
+    }
+
+    function hideDownloadsPanel() {
+      const panel = document.getElementById('activeDownloadsPanel');
+      panel.style.display = 'none';
+      downloadsPanelVisible = false;
+    }
+
+    function updateActiveDownloads() {
+      fetch('{% url "browser:active_downloads" %}')
+        .then(response => response.json())
+        .then(data => {
+          const downloadsList = document.getElementById('downloadsList');
+          const downloadsCount = document.getElementById('downloadsCount');
+          const toggleBtn = document.getElementById('downloadsToggleBtn');
+
+          const downloads = data.downloads || [];
+          downloadsCount.textContent = downloads.length;
+
+          if (downloads.length > 0) {
+            toggleBtn.style.display = 'block';
+          } else {
+            toggleBtn.style.display = 'none';
+            hideDownloadsPanel();
+            return;
+          }
+
+          downloadsList.innerHTML = '';
+
+          downloads.forEach(download => {
+            const item = document.createElement('div');
+            item.className = 'list-group-item p-3';
+
+            const progressBar = `
+              <div class="progress mb-2" style="height: 6px;">
+                <div class="progress-bar ${download.error ? 'bg-danger' : download.completed ? 'bg-success' : 'bg-primary'}" 
+                     role="progressbar" 
+                     style="width: ${download.percent}%" 
+                     aria-valuenow="${download.percent}" 
+                     aria-valuemin="0" 
+                     aria-valuemax="100"></div>
+              </div>
+            `;
+
+            const statusIcon = download.error ? 'bi-exclamation-triangle text-danger' : 
+                              download.completed ? 'bi-check-circle text-success' : 
+                              'bi-play-circle text-primary';
+
+            const timeInfo = download.time_remaining ? 
+              `<small class="text-muted">Time left: ${download.time_remaining}</small>` :
+              `<small class="text-muted">Elapsed: ${download.elapsed_time}</small>`;
+
+            item.innerHTML = `
+              <div class="d-flex justify-content-between align-items-start mb-1">
+                <div class="flex-grow-1">
+                  <div class="d-flex align-items-center mb-1">
+                    <i class="bi ${statusIcon} me-2"></i>
+                    <small class="fw-semibold">${download.downloaded_count}/${download.total_count} videos</small>
+                  </div>
+                  <div class="text-truncate" style="font-size: 0.8rem;">
+                    ${download.current_video || download.status}
+                  </div>
+                  ${timeInfo}
+                </div>
+                <div class="d-flex align-items-center gap-1">
+                  <small class="text-muted">${download.percent}%</small>
+                  ${!download.completed && !download.error ? 
+                    `<button type="button" class="btn btn-sm btn-outline-danger" onclick="cancelDownload('${download.id}')" title="Cancel Download">
+                      <i class="bi bi-x-circle"></i>
+                    </button>` : ''}
+                </div>
+              </div>
+              ${progressBar}
+              ${download.error ? `<div class="text-danger small mt-1">${download.error}</div>` : ''}
+            `;
+
+            downloadsList.appendChild(item);
+          });
+        })
+        .catch(error => {
+          console.error('Error updating downloads:', error);
+        });
+    }
+
+    function cancelDownload(downloadId) {
+      if (!confirm('Are you sure you want to cancel this download?')) {
+        return;
+      }
+
+      fetch('{% url "browser:cancel_download" %}', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || ''
+        },
+        body: JSON.stringify({ download_id: downloadId })
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          // Immediately update the downloads to show cancellation
+          updateActiveDownloads();
+        } else {
+          alert('Error cancelling download: ' + (data.error || 'Unknown error'));
+        }
+      })
+      .catch(error => {
+        console.error('Error cancelling download:', error);
+        alert('Error cancelling download');
+      });
+    }
+
+    // Start polling for downloads when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+      updateActiveDownloads();
+      downloadsUpdateInterval = setInterval(updateActiveDownloads, 1000); // Update every second
+    });
+
+    // Clean up interval when page unloads
+    window.addEventListener('beforeunload', function() {
+      if (downloadsUpdateInterval) {
+        clearInterval(downloadsUpdateInterval);
+      }
+    });
+  </script>
+  {% endif %}
+  
+  {% block extra_js %}{% endblock %}
 </body>
 
 </html>

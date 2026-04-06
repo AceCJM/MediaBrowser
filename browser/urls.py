@@ -10,4 +10,8 @@ urlpatterns = [
     path("library/<int:library_id>/play/<path:filepath>", views.media_player, name="media_player"),
     path("library/<int:library_id>/media/<path:filepath>", views.serve_media, name="serve_media"),
     path("library/<int:library_id>/thumbnail/<path:filepath>", views.serve_thumbnail, name="serve_thumbnail"),
+    path("library/<int:library_id>/download/", views.download_videos, name="download_videos"),
+    path("library/<int:library_id>/download/progress/", views.download_progress, name="download_progress"),
+    path("active-downloads/", views.active_downloads, name="active_downloads"),
+    path("cancel-download/", views.cancel_download, name="cancel_download"),
 ]
