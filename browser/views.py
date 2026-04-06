@@ -53,6 +53,8 @@ def _list_directory(abs_path):
     except PermissionError:
         return folders, media_files
 
+    # First pass: collect all entries
+    all_files = []
     for entry in entries:
         if entry.name.startswith("."):
             continue
@@ -61,7 +63,24 @@ def _list_directory(abs_path):
         elif entry.is_file(follow_symlinks=False):
             ext = os.path.splitext(entry.name)[1].lower()
             if ext in MEDIA_EXTENSIONS:
-                media_files.append(entry.name)
+                all_files.append(entry.name)
+
+    # Second pass: filter out originals when converted versions exist
+    converted_files = set()
+    for filename in all_files:
+        name_without_ext = os.path.splitext(filename)[0]
+        ext = os.path.splitext(filename)[1]
+        
+        # Check if this is a converted file (ends with _converted)
+        if name_without_ext.endswith('_converted'):
+            original_name = name_without_ext[:-10] + ext  # Remove '_converted'
+            converted_files.add(original_name)
+    
+    # Only include files that don't have converted versions
+    for filename in all_files:
+        if filename not in converted_files:
+            media_files.append(filename)
+
     return folders, media_files
 
 
@@ -265,6 +284,17 @@ def media_player(request, library_id, filepath):
     abs_path = _safe_join(library.path, filepath)
 
     if not os.path.isfile(abs_path):
+        # Check if there's a converted version we should redirect to
+        name_without_ext = os.path.splitext(filepath)[0]
+        ext = os.path.splitext(filepath)[1]
+        converted_filepath = f"{name_without_ext}_converted{ext}"
+        converted_abs_path = _safe_join(library.path, converted_filepath)
+        
+        if os.path.isfile(converted_abs_path):
+            # Redirect to the converted version
+            from django.shortcuts import redirect
+            return redirect('browser:media_player', library_id=library_id, filepath=converted_filepath)
+        
         raise Http404("File not found")
 
     ext = os.path.splitext(filepath)[1].lower()
@@ -314,6 +344,17 @@ def serve_media(request, library_id, filepath):
     abs_path = _safe_join(library.path, filepath)
 
     if not os.path.isfile(abs_path):
+        # Check if there's a converted version we should redirect to
+        name_without_ext = os.path.splitext(filepath)[0]
+        ext = os.path.splitext(filepath)[1]
+        converted_filepath = f"{name_without_ext}_converted{ext}"
+        converted_abs_path = _safe_join(library.path, converted_filepath)
+        
+        if os.path.isfile(converted_abs_path):
+            # Redirect to the converted version
+            from django.shortcuts import redirect
+            return redirect('browser:serve_media', library_id=library_id, filepath=converted_filepath)
+        
         raise Http404("File not found")
 
     ext = os.path.splitext(filepath)[1].lower()
@@ -347,6 +388,17 @@ def serve_thumbnail(request, library_id, filepath):
     abs_path = _safe_join(library.path, filepath)
 
     if not os.path.isfile(abs_path):
+        # Check if there's a converted version we should redirect to
+        name_without_ext = os.path.splitext(filepath)[0]
+        ext = os.path.splitext(filepath)[1]
+        converted_filepath = f"{name_without_ext}_converted{ext}"
+        converted_abs_path = _safe_join(library.path, converted_filepath)
+        
+        if os.path.isfile(converted_abs_path):
+            # Redirect to the converted version's thumbnail
+            from django.shortcuts import redirect
+            return redirect('browser:serve_thumbnail', library_id=library_id, filepath=converted_filepath)
+        
         raise Http404("File not found")
 
     ext = os.path.splitext(filepath)[1].lower()
