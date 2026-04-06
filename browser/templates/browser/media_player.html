@@ -64,6 +64,99 @@
           {% if parent_subpath %}{{ library.name }} / {{ parent_subpath }}{% else %}{{ library.name }}{% endif %}
         </p>
       </div>
+      
+      {# ── Metadata ─────────────────────────────────────────────────────────── #}
+      {% if is_video and video_metadata %}
+      <div class="mt-4">
+        <h6 class="mb-3"><i class="bi bi-info-circle me-2"></i>Video Information</h6>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <div class="card border-0 shadow-sm">
+              <div class="card-body p-4">
+                <h6 class="card-title mb-3 text-primary"><i class="bi bi-gear me-2"></i>Technical Details</h6>
+                <table class="table table-borderless mb-0">
+                  <tbody>
+                    <tr>
+                      <td class="fw-semibold text-dark ps-0">Duration</td>
+                      <td class="text-end">{{ video_metadata.duration|floatformat:1 }} seconds</td>
+                    </tr>
+                    <tr>
+                      <td class="fw-semibold text-dark ps-0">Resolution</td>
+                      <td class="text-end">{{ video_metadata.width }} × {{ video_metadata.height }}</td>
+                    </tr>
+                    <tr>
+                      <td class="fw-semibold text-dark ps-0">Frame Rate</td>
+                      <td class="text-end">{{ video_metadata.fps|floatformat:1 }} fps</td>
+                    </tr>
+                    <tr>
+                      <td class="fw-semibold text-dark ps-0">File Size</td>
+                      <td class="text-end">{{ file_size|filesizeformat }}</td>
+                    </tr>
+                    {% if codec_info and codec_info.video_codec %}
+                    <tr>
+                      <td class="fw-semibold text-dark ps-0">Video Codec</td>
+                      <td class="text-end">
+                        <span class="badge bg-info">{{ codec_info.video_codec|upper }}</span>
+                        {% if codec_info.profile %} ({{ codec_info.profile }}){% endif %}
+                      </td>
+                    </tr>
+                    {% endif %}
+                    {% if codec_info and codec_info.format_name %}
+                    <tr>
+                      <td class="fw-semibold text-dark ps-0">Container</td>
+                      <td class="text-end">{{ codec_info.format_name|upper }}</td>
+                    </tr>
+                    {% endif %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="card border-0 shadow-sm">
+              <div class="card-body p-4">
+                <h6 class="card-title mb-3 text-success"><i class="bi bi-volume-up me-2"></i>Audio Information</h6>
+                {% if video_metadata.has_audio %}
+                <table class="table table-borderless mb-0">
+                  <tbody>
+                    <tr>
+                      <td class="fw-semibold text-dark ps-0">Audio</td>
+                      <td class="text-end"><span class="badge bg-success">Yes</span></td>
+                    </tr>
+                    {% if codec_info and codec_info.audio_codec %}
+                    <tr>
+                      <td class="fw-semibold text-dark ps-0">Audio Codec</td>
+                      <td class="text-end">
+                        <span class="badge bg-warning text-dark">{{ codec_info.audio_codec|upper }}</span>
+                      </td>
+                    </tr>
+                    {% endif %}
+                    {% if video_metadata.audio_fps %}
+                    <tr>
+                      <td class="fw-semibold text-dark ps-0">Sample Rate</td>
+                      <td class="text-end">{{ video_metadata.audio_fps }} Hz</td>
+                    </tr>
+                    {% endif %}
+                    {% if codec_info and codec_info.audio_channels %}
+                    <tr>
+                      <td class="fw-semibold text-dark ps-0">Channels</td>
+                      <td class="text-end">{{ codec_info.audio_channels }}</td>
+                    </tr>
+                    {% endif %}
+                  </tbody>
+                </table>
+                {% else %}
+                <div class="text-center py-4">
+                  <i class="bi bi-volume-mute text-muted" style="font-size: 2rem;"></i>
+                  <p class="text-muted mb-0 mt-2">No audio track</p>
+                </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
     </div>
   </div>
 </div>

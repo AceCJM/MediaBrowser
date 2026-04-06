@@ -2,6 +2,8 @@ import hashlib
 import io
 import mimetypes
 import os
+import subprocess
+import json
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
@@ -105,6 +107,85 @@ def _generate_video_thumbnail(abs_path):
         return None
 
 
+def _get_video_metadata(abs_path):
+    """Extract metadata from a video file using moviepy."""
+    if VideoFileClip is None:
+        return None
+    
+    try:
+        with VideoFileClip(abs_path) as clip:
+            metadata = {
+                'duration': clip.duration,
+                'width': clip.w,
+                'height': clip.h,
+                'fps': clip.fps,
+                'size': clip.size,
+            }
+            
+            # Add audio information if available
+            if hasattr(clip, 'audio') and clip.audio is not None:
+                metadata['has_audio'] = True
+                metadata['audio_fps'] = getattr(clip.audio, 'fps', None)
+                metadata['audio_nchannels'] = getattr(clip.audio, 'nchannels', None)
+            else:
+                metadata['has_audio'] = False
+            
+            return metadata
+    except Exception:
+        return None
+
+
+def _get_video_codec_info(abs_path):
+    """Extract codec information using ffprobe."""
+    try:
+        # Run ffprobe to get codec information
+        cmd = [
+            'ffprobe',
+            '-v', 'quiet',
+            '-print_format', 'json',
+            '-show_format',
+            '-show_streams',
+            abs_path
+        ]
+        
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        if result.returncode != 0:
+            return None
+            
+        data = json.loads(result.stdout)
+        
+        codec_info = {}
+        
+        # Get video stream info
+        for stream in data.get('streams', []):
+            if stream.get('codec_type') == 'video':
+                codec_info['video_codec'] = stream.get('codec_name', 'unknown')
+                codec_info['video_codec_long'] = stream.get('codec_long_name', '')
+                codec_info['profile'] = stream.get('profile', '')
+                codec_info['level'] = stream.get('level', '')
+                codec_info['bitrate'] = stream.get('bit_rate', '')
+                break
+        
+        # Get audio stream info
+        for stream in data.get('streams', []):
+            if stream.get('codec_type') == 'audio':
+                codec_info['audio_codec'] = stream.get('codec_name', 'unknown')
+                codec_info['audio_codec_long'] = stream.get('codec_long_name', '')
+                codec_info['audio_channels'] = stream.get('channels', '')
+                codec_info['audio_sample_rate'] = stream.get('sample_rate', '')
+                break
+        
+        # Get format info
+        format_info = data.get('format', {})
+        codec_info['format_name'] = format_info.get('format_name', '')
+        codec_info['format_long_name'] = format_info.get('format_long_name', '')
+        
+        return codec_info
+        
+    except (subprocess.TimeoutExpired, json.JSONDecodeError, FileNotFoundError):
+        return None
+
+
 # ── views ─────────────────────────────────────────────────────────────────────
 
 @login_required
@@ -195,6 +276,16 @@ def media_player(request, library_id, filepath):
     filename = parts[-1]
 
     mime_type = mimetypes.guess_type(abs_path)[0] or "application/octet-stream"
+    
+    # Get file size
+    file_size = os.path.getsize(abs_path)
+    
+    # Get video metadata if it's a video
+    video_metadata = None
+    codec_info = None
+    if ext in VIDEO_EXTENSIONS:
+        video_metadata = _get_video_metadata(abs_path)
+        codec_info = _get_video_codec_info(abs_path)
 
     context = {
         "library": library,
@@ -204,6 +295,9 @@ def media_player(request, library_id, filepath):
         "is_video": ext in VIDEO_EXTENSIONS,
         "is_image": ext in IMAGE_EXTENSIONS,
         "mime_type": mime_type,
+        "file_size": file_size,
+        "video_metadata": video_metadata,
+        "codec_info": codec_info,
     }
     return render(request, "browser/media_player.html", context)
 
