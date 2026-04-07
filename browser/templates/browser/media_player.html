@@ -278,6 +278,26 @@
 {% block extra_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+  // Auto-rotate to landscape on mobile devices
+  function requestLandscapeOrientation() {
+    if (screen.orientation && screen.orientation.lock) {
+      // Check if it's a mobile device
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+                      (window.innerWidth <= 768 && window.innerHeight > window.innerWidth);
+
+      if (isMobile && screen.orientation.type !== 'landscape-primary' && screen.orientation.type !== 'landscape-secondary') {
+        screen.orientation.lock('landscape').then(function() {
+          console.log('Screen locked to landscape orientation');
+        }).catch(function(error) {
+          console.log('Failed to lock screen orientation:', error);
+        });
+      }
+    }
+  }
+
+  // Request landscape orientation when page loads
+  requestLandscapeOrientation();
+
   // Wait for Video.js to initialize
   const initCustomPlayer = function() {
     const videoPlayer = document.getElementById('custom-video-player');
@@ -373,8 +393,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const touchX = e.touches[0].clientX;
         const deltaX = touchX - touchStartX;
 
-        // Controlled seeking: adjust sensitivity for better UX
-        const seekPercent = deltaX / (window.innerWidth * 0.3);
+        // Reduced sensitivity: adjust for less responsive seeking
+        const seekPercent = deltaX / (window.innerWidth * 0.5);
         const newTime = Math.max(0, Math.min(videoElement.duration, touchStartTime + (seekPercent * videoElement.duration)));
         videoElement.currentTime = newTime;
       }
@@ -415,8 +435,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
       if (isMouseSeeking) {
         const deltaX = e.clientX - mouseStartX;
-        // Less sensitive for mouse (use video width as reference)
-        const seekPercent = deltaX / (videoElement.offsetWidth * 0.2);
+        // Reduced sensitivity for mouse (use video width as reference)
+        const seekPercent = deltaX / (videoElement.offsetWidth * 0.3);
         const newTime = Math.max(0, Math.min(videoElement.duration, mouseStartTime + (seekPercent * videoElement.duration)));
         videoElement.currentTime = newTime;
       }
