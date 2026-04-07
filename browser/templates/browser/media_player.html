@@ -6,13 +6,13 @@
 {# ── Back button ───────────────────────────────────────────────────────────── #}
 <div class="mb-3">
   {% if parent_subpath %}
-    <a href="{% url 'browser:browse' library.id parent_subpath %}" class="btn btn-outline-secondary btn-sm">
-      <i class="bi bi-arrow-left me-1"></i>Back to folder
-    </a>
+  <a href="{% url 'browser:browse' library.id parent_subpath %}" class="btn btn-outline-secondary btn-sm">
+    <i class="bi bi-arrow-left me-1"></i>Back to folder
+  </a>
   {% else %}
-    <a href="{% url 'browser:browse_root' library.id %}" class="btn btn-outline-secondary btn-sm">
-      <i class="bi bi-arrow-left me-1"></i>Back to {{ library.name }}
-    </a>
+  <a href="{% url 'browser:browse_root' library.id %}" class="btn btn-outline-secondary btn-sm">
+    <i class="bi bi-arrow-left me-1"></i>Back to {{ library.name }}
+  </a>
   {% endif %}
 </div>
 
@@ -26,53 +26,149 @@
       <a href="{% url 'browser:browse_root' library.id %}">{{ library.name }}</a>
     </li>
     {% if parent_subpath %}
-      <li class="breadcrumb-item">
-        <a href="{% url 'browser:browse' library.id parent_subpath %}">{{ parent_subpath }}</a>
-      </li>
+    <li class="breadcrumb-item">
+      <a href="{% url 'browser:browse' library.id parent_subpath %}">{{ parent_subpath }}</a>
+    </li>
     {% endif %}
     <li class="breadcrumb-item active">{{ filename }}</li>
   </ol>
 </nav>
 
 {# ── Player ────────────────────────────────────────────────────────────────── #}
+<script type="module" src="https://cdn.jsdelivr.net/npm/@videojs/html/cdn/video.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@videojs/html/dist/video-ui.css">
+
+<!-- Video.js Seek Buttons Plugin -->
+<script src="https://cdn.jsdelivr.net/npm/videojs-seek-buttons@3.0.1/dist/videojs-seek-buttons.min.js"></script>
+
+<style>
+/* Custom styles for centered pause button and player customization */
+.video-player-custom .vjs-control-bar .vjs-play-control {
+  display: none !important; /* Hide the default play button */
+}
+
+.video-player-custom .center-pause-button {
+  position: absolute !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  z-index: 10 !important;
+  background: rgba(0, 0, 0, 0.7) !important;
+  border: 2px solid rgba(255, 255, 255, 0.8) !important;
+  border-radius: 50% !important;
+  width: 60px !important;
+  height: 60px !important;
+  color: white !important;
+  font-size: 24px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  opacity: 0 !important;
+}
+
+.video-player-custom:hover .center-pause-button {
+  opacity: 1 !important;
+}
+
+.video-player-custom .center-pause-button:hover {
+  background: rgba(0, 0, 0, 0.9) !important;
+  border-color: white !important;
+  transform: translate(-50%, -50%) scale(1.1) !important;
+}
+
+/* Hide seek buttons from control bar since we want them elsewhere or styled differently */
+.video-player-custom .vjs-seek-button {
+  display: none !important;
+}
+
+/* Custom seek buttons positioned on the sides */
+.video-player-custom .custom-seek-back,
+.video-player-custom .custom-seek-forward {
+  position: absolute !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  z-index: 10 !important;
+  background: rgba(0, 0, 0, 0.6) !important;
+  border: 1px solid rgba(255, 255, 255, 0.5) !important;
+  border-radius: 50% !important;
+  width: 40px !important;
+  height: 40px !important;
+  color: white !important;
+  font-size: 16px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  opacity: 0 !important;
+}
+
+.video-player-custom .custom-seek-back {
+  left: 20px !important;
+}
+
+.video-player-custom .custom-seek-forward {
+  right: 20px !important;
+}
+
+.video-player-custom:hover .custom-seek-back,
+.video-player-custom:hover .custom-seek-forward {
+  opacity: 1 !important;
+}
+
+.video-player-custom .custom-seek-back:hover,
+.video-player-custom .custom-seek-forward:hover {
+  background: rgba(0, 0, 0, 0.8) !important;
+  border-color: white !important;
+  transform: translateY(-50%) scale(1.1) !important;
+}
+</style>
+
 <div class="row justify-content-center">
   <div class="col-12 col-lg-10 col-xl-8">
     <div class="card p-3">
       {% if is_video %}
-        {% if is_mpeg_ts %}
-          <!-- MPEG-TS files are not supported by HTML5 video -->
-          <div class="alert alert-warning" role="alert">
-            <i class="bi bi-exclamation-triangle me-2"></i>
-            <strong>MPEG-TS Format Detected</strong><br>
-            This video uses the MPEG Transport Stream format, which is not natively supported by web browsers.
-            You can download the file to play it in a compatible media player.
-          </div>
-          <div class="text-center my-4">
-            <a href="{% url 'browser:serve_media' library.id filepath %}" 
-               class="btn btn-primary btn-lg" 
-               download="{{ filename }}">
-              <i class="bi bi-download me-2"></i>Download Video
-            </a>
-          </div>
-        {% else %}
-          <video
-            controls
-            autoplay
-            class="w-100 rounded"
-            style="max-height: 70vh; background: #000;"
-            preload="metadata"
-          >
-            <source src="{% url 'browser:serve_media' library.id filepath %}" type="{{ mime_type }}">
-            Your browser does not support the video tag.
-          </video>
-        {% endif %}
+      {% if is_mpeg_ts %}
+      <!-- MPEG-TS files are not supported by HTML5 video -->
+      <div class="alert alert-warning" role="alert">
+        <i class="bi bi-exclamation-triangle me-2"></i>
+        <strong>MPEG-TS Format Detected</strong><br>
+        This video uses the MPEG Transport Stream format, which is not natively supported by web browsers.
+        You can download the file to play it in a compatible media player.
+      </div>
+      <div class="text-center my-4">
+        <a href="{% url 'browser:serve_media' library.id filepath %}" class="btn btn-primary btn-lg"
+          download="{{ filename }}">
+          <i class="bi bi-download me-2"></i>Download Video
+        </a>
+      </div>
+      {% else %}
+      <div class="video-player-custom position-relative">
+        <video-player id="custom-video-player">
+          <video-skin>
+            <video src="{% url 'browser:serve_media' library.id filepath %}" playsinline></video>
+          </video-skin>
+        </video-player>
+
+        <!-- Custom centered pause button -->
+        <button class="center-pause-button" id="center-pause-btn" title="Play/Pause">
+          <i class="bi bi-play-fill" id="center-pause-icon"></i>
+        </button>
+
+        <!-- Custom seek buttons -->
+        <button class="custom-seek-back" id="seek-back-btn" title="Skip backward 5 seconds">
+          <i class="bi bi-skip-backward-fill"></i>
+        </button>
+        <button class="custom-seek-forward" id="seek-forward-btn" title="Skip forward 5 seconds">
+          <i class="bi bi-skip-forward-fill"></i>
+        </button>
+      </div>
+      {% endif %}
       {% elif is_image %}
-        <img
-          src="{% url 'browser:serve_media' library.id filepath %}"
-          class="img-fluid rounded mx-auto d-block"
-          style="max-height: 80vh;"
-          alt="{{ filename }}"
-        >
+      <img src="{% url 'browser:serve_media' library.id filepath %}" class="img-fluid rounded mx-auto d-block"
+        style="max-height: 80vh;" alt="{{ filename }}">
       {% endif %}
       <div class="mt-3 px-1">
         <h5 class="mb-1" style="word-break:break-word;">{{ filename }}</h5>
@@ -81,7 +177,7 @@
           {% if parent_subpath %}{{ library.name }} / {{ parent_subpath }}{% else %}{{ library.name }}{% endif %}
         </p>
       </div>
-      
+
       {# ── Metadata ─────────────────────────────────────────────────────────── #}
       {% if is_video and video_metadata %}
       <div class="mt-4">
@@ -178,4 +274,183 @@
   </div>
 </div>
 
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Wait for Video.js to initialize
+  const initCustomPlayer = function() {
+    const videoPlayer = document.getElementById('custom-video-player');
+    const videoElement = videoPlayer ? videoPlayer.querySelector('video') : null;
+
+    if (!videoElement) {
+      // Retry after a short delay if video element not found
+      setTimeout(initCustomPlayer, 100);
+      return;
+    }
+
+    console.log('Initializing custom video player controls');
+
+    // Get custom control elements
+    const centerPauseBtn = document.getElementById('center-pause-btn');
+    const centerPauseIcon = document.getElementById('center-pause-icon');
+    const seekBackBtn = document.getElementById('seek-back-btn');
+    const seekForwardBtn = document.getElementById('seek-forward-btn');
+
+    // Update pause button icon based on video state
+    function updatePauseButtonIcon() {
+      if (videoElement.paused) {
+        centerPauseIcon.className = 'bi bi-play-fill';
+      } else {
+        centerPauseIcon.className = 'bi bi-pause-fill';
+      }
+    }
+
+    // Center pause button functionality
+    centerPauseBtn.addEventListener('click', function() {
+      if (videoElement.paused) {
+        videoElement.play();
+      } else {
+        videoElement.pause();
+      }
+    });
+
+    // Seek buttons functionality (5 seconds)
+    seekBackBtn.addEventListener('click', function() {
+      const newTime = Math.max(0, videoElement.currentTime - 5);
+      videoElement.currentTime = newTime;
+    });
+
+    seekForwardBtn.addEventListener('click', function() {
+      const newTime = Math.min(videoElement.duration, videoElement.currentTime + 5);
+      videoElement.currentTime = newTime;
+    });
+
+    // Update pause button icon when video state changes
+    videoElement.addEventListener('play', updatePauseButtonIcon);
+    videoElement.addEventListener('pause', updatePauseButtonIcon);
+    videoElement.addEventListener('loadedmetadata', updatePauseButtonIcon);
+
+    // Initialize pause button icon
+    updatePauseButtonIcon();
+
+    // Slide seeking variables
+    let touchStartX = 0;
+    let touchStartTime = 0;
+    let isTouchSeeking = false;
+    let mouseStartX = 0;
+    let mouseStartTime = 0;
+    let isMouseSeeking = false;
+    let wasPlaying = false;
+
+    // Touch events for mobile slide seeking
+    videoElement.addEventListener('touchstart', function(e) {
+      if (e.touches.length === 1) {
+        touchStartX = e.touches[0].clientX;
+        touchStartTime = videoElement.currentTime;
+        isTouchSeeking = false;
+        videoElement.style.cursor = 'grabbing';
+      }
+    }, { passive: true });
+
+    videoElement.addEventListener('touchmove', function(e) {
+      if (e.touches.length === 1 && !isTouchSeeking) {
+        const touchX = e.touches[0].clientX;
+        const deltaX = touchX - touchStartX;
+
+        // Only start seeking if horizontal movement is significant (50px threshold)
+        if (Math.abs(deltaX) > 50) {
+          isTouchSeeking = true;
+          wasPlaying = !videoElement.paused;
+          if (wasPlaying) {
+            videoElement.pause();
+          }
+        }
+      }
+
+      if (isTouchSeeking) {
+        e.preventDefault();
+        const touchX = e.touches[0].clientX;
+        const deltaX = touchX - touchStartX;
+
+        // Controlled seeking: adjust sensitivity for better UX
+        const seekPercent = deltaX / (window.innerWidth * 0.3);
+        const newTime = Math.max(0, Math.min(videoElement.duration, touchStartTime + (seekPercent * videoElement.duration)));
+        videoElement.currentTime = newTime;
+      }
+    }, { passive: false });
+
+    videoElement.addEventListener('touchend', function(e) {
+      if (isTouchSeeking) {
+        isTouchSeeking = false;
+        if (wasPlaying) {
+          videoElement.play();
+        }
+      }
+      videoElement.style.cursor = '';
+    });
+
+    // Mouse events for desktop slide seeking
+    videoElement.addEventListener('mousedown', function(e) {
+      if (e.button === 0) { // Left click only
+        mouseStartX = e.clientX;
+        mouseStartTime = videoElement.currentTime;
+        isMouseSeeking = false;
+        videoElement.style.cursor = 'grabbing';
+      }
+    });
+
+    videoElement.addEventListener('mousemove', function(e) {
+      if (e.buttons === 1 && !isMouseSeeking) { // Left button held
+        const deltaX = e.clientX - mouseStartX;
+
+        if (Math.abs(deltaX) > 30) { // Higher threshold for mouse
+          isMouseSeeking = true;
+          wasPlaying = !videoElement.paused;
+          if (wasPlaying) {
+            videoElement.pause();
+          }
+        }
+      }
+
+      if (isMouseSeeking) {
+        const deltaX = e.clientX - mouseStartX;
+        // Less sensitive for mouse (use video width as reference)
+        const seekPercent = deltaX / (videoElement.offsetWidth * 0.2);
+        const newTime = Math.max(0, Math.min(videoElement.duration, mouseStartTime + (seekPercent * videoElement.duration)));
+        videoElement.currentTime = newTime;
+      }
+    });
+
+    videoElement.addEventListener('mouseup', function() {
+      if (isMouseSeeking) {
+        isMouseSeeking = false;
+        if (wasPlaying) {
+          videoElement.play();
+        }
+      }
+      videoElement.style.cursor = '';
+    });
+
+    videoElement.addEventListener('mouseleave', function() {
+      if (isMouseSeeking) {
+        isMouseSeeking = false;
+        if (wasPlaying) {
+          videoElement.play();
+        }
+      }
+      videoElement.style.cursor = '';
+    });
+
+    // Prevent context menu on video
+    videoElement.addEventListener('contextmenu', function(e) {
+      e.preventDefault();
+    });
+
+    console.log('Custom video player controls initialized successfully');
+  };
+
+  // Initialize after a short delay to ensure Video.js is ready
+  setTimeout(initCustomPlayer, 500);
+});
+</script>
 {% endblock %}
