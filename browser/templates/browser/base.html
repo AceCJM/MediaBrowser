@@ -223,6 +223,9 @@
         <i class="bi bi-play-circle-fill me-1"></i>MediaBrowser
       </a>
       <div class="ms-auto d-flex align-items-center gap-3">
+        <button id="installButton" type="button" class="btn btn-outline-primary btn-sm" style="display: none;" onclick="installPWA()">
+          <i class="bi bi-download me-1"></i>Install App
+        </button>
         {% if user.is_authenticated %}
         <span class="text-muted small" style="color: var(--mb-text-muted) !important;"><i class="bi bi-person-circle me-1"></i>{{ user.username }}</span>
         {% if user.is_staff %}
@@ -444,15 +447,62 @@
             console.log('ServiceWorker registration failed: ', error);
           });
       });
+    } else {
+      console.log('Service Worker not supported');
     }
+
+    // Check if PWA criteria are met
+    window.addEventListener('load', function() {
+      console.log('PWA Check:');
+      console.log('- HTTPS or localhost:', location.protocol === 'https:' || location.hostname === 'localhost');
+      console.log('- Service Worker:', 'serviceWorker' in navigator);
+      console.log('- Manifest:', !!document.querySelector('link[rel="manifest"]'));
+      console.log('- Display mode:', window.matchMedia('(display-mode: standalone)').matches ? 'standalone' : 'browser');
+    });
 
     // Handle PWA install prompt
     let deferredPrompt;
+    const installButton = document.getElementById('installButton');
+
     window.addEventListener('beforeinstallprompt', (e) => {
+      console.log('beforeinstallprompt event fired');
       // Prevent the mini-infobar from appearing on mobile
       e.preventDefault();
       // Stash the event so it can be triggered later
       deferredPrompt = e;
+      // Show the install button
+      if (installButton) {
+        installButton.style.display = 'block';
+        console.log('Install button shown');
+      }
+    });
+
+    // Handle install button click
+    function installPWA() {
+      if (deferredPrompt) {
+        console.log('Triggering install prompt');
+        deferredPrompt.prompt();
+        deferredPrompt.userChoice.then((choiceResult) => {
+          if (choiceResult.outcome === 'accepted') {
+            console.log('User accepted the install prompt');
+          } else {
+            console.log('User dismissed the install prompt');
+          }
+          deferredPrompt = null;
+        });
+      } else {
+        console.log('No deferred prompt available');
+      }
+    }
+
+    // Hide install button after successful installation
+    window.addEventListener('appinstalled', (evt) => {
+      console.log('PWA was installed successfully');
+      if (installButton) {
+        installButton.style.display = 'none';
+      }
+    });
+  </script>
       // Update UI to notify the user they can install the PWA
       console.log('PWA install prompt available');
     });
