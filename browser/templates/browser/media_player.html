@@ -1,6 +1,195 @@
 {% extends "browser/base.html" %}
 {% block title %}{{ filename }} – MediaBrowser{% endblock %}
 
+{% block extra_css %}
+<style>
+  /* Custom Video Player Styles */
+  .custom-video-player {
+    position: relative;
+    background: #000;
+  }
+
+  .custom-video-player video {
+    width: 100%;
+    height: auto;
+  }
+
+  /* Play/Pause Overlay */
+  .play-pause-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.3);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    z-index: 10;
+  }
+
+  .custom-video-player:hover .play-pause-overlay,
+  .play-pause-overlay.visible {
+    opacity: 1;
+  }
+
+  .play-pause-btn {
+    background: rgba(0, 0, 0, 0.7);
+    border: 2px solid rgba(255, 255, 255, 0.8);
+    border-radius: 50%;
+    width: 80px;
+    height: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 2rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    backdrop-filter: blur(10px);
+  }
+
+  .play-pause-btn:hover {
+    background: rgba(0, 0, 0, 0.9);
+    border-color: white;
+    transform: scale(1.05);
+  }
+
+  /* Video Controls */
+  .video-controls {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+    padding: 20px 15px 15px;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+
+  .custom-video-player:hover .video-controls {
+    opacity: 1;
+  }
+
+  .control-row {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+  }
+
+  .control-btn {
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 1.2rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    backdrop-filter: blur(10px);
+  }
+
+  .control-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: scale(1.1);
+  }
+
+  .control-btn.active {
+    background: var(--mb-accent);
+    color: white;
+  }
+
+  /* Progress Bar */
+  .progress-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .progress-bar-custom {
+    position: relative;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 3px;
+    cursor: pointer;
+    transition: height 0.2s ease;
+  }
+
+  .progress-bar-custom:hover {
+    height: 8px;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: var(--mb-accent);
+    border-radius: 3px;
+    transition: width 0.1s ease;
+  }
+
+  .progress-handle {
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 16px;
+    height: 16px;
+    background: white;
+    border-radius: 50%;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    pointer-events: none;
+  }
+
+  .progress-bar-custom:hover .progress-handle {
+    opacity: 1;
+  }
+
+  .time-display {
+    font-size: 0.8rem;
+    color: white;
+    text-align: center;
+  }
+
+  /* Mobile Optimizations */
+  @media (max-width: 768px) {
+    .play-pause-btn {
+      width: 60px;
+      height: 60px;
+      font-size: 1.5rem;
+    }
+
+    .control-btn {
+      width: 35px;
+      height: 35px;
+      font-size: 1rem;
+    }
+
+    .video-controls {
+      padding: 15px 10px 10px;
+    }
+
+    .control-row {
+      gap: 10px;
+    }
+  }
+
+  /* Touch feedback */
+  .seeking {
+    cursor: grabbing !important;
+  }
+
+  .seeking .progress-handle {
+    opacity: 1 !important;
+  }
+</style>
+{% endblock %}
+
 {% block content %}
 
 {# ── Back button ───────────────────────────────────────────────────────────── #}
@@ -55,16 +244,52 @@
             </a>
           </div>
         {% else %}
-          <video
-            controls
-            autoplay
-            class="w-100 rounded"
-            style="max-height: 70vh; background: #000;"
-            preload="metadata"
-          >
-            <source src="{% url 'browser:serve_media' library.id filepath %}" type="{{ mime_type }}">
-            Your browser does not support the video tag.
-          </video>
+          <!-- Custom Video Player -->
+          <div class="custom-video-player position-relative rounded overflow-hidden" style="background: #000; max-height: 70vh;">
+            <video
+              id="customVideo"
+              class="w-100"
+              style="max-height: 70vh; display: block;"
+              preload="metadata"
+            >
+              <source src="{% url 'browser:serve_media' library.id filepath %}" type="{{ mime_type }}">
+              Your browser does not support the video tag.
+            </video>
+
+            <!-- Play/Pause Overlay Button -->
+            <div id="playPauseOverlay" class="play-pause-overlay">
+              <button id="playPauseBtn" class="play-pause-btn">
+                <i class="bi bi-play-fill"></i>
+              </button>
+            </div>
+
+            <!-- Control Bar -->
+            <div class="video-controls">
+              <div class="control-row">
+                <button id="playPauseBtnSmall" class="control-btn">
+                  <i class="bi bi-play-fill"></i>
+                </button>
+
+                <div class="progress-container">
+                  <div id="progressBar" class="progress-bar-custom">
+                    <div id="progressFill" class="progress-fill"></div>
+                    <div id="progressHandle" class="progress-handle"></div>
+                  </div>
+                  <div class="time-display">
+                    <span id="currentTime">0:00</span> / <span id="duration">0:00</span>
+                  </div>
+                </div>
+
+                <button id="loopBtn" class="control-btn" title="Toggle Loop">
+                  <i class="bi bi-arrow-repeat"></i>
+                </button>
+
+                <button id="fullscreenBtn" class="control-btn" title="Fullscreen">
+                  <i class="bi bi-fullscreen"></i>
+                </button>
+              </div>
+            </div>
+          </div>
         {% endif %}
       {% elif is_image %}
         <img
@@ -178,4 +403,294 @@
   </div>
 </div>
 
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const video = document.getElementById('customVideo');
+  const playPauseOverlay = document.getElementById('playPauseOverlay');
+  const playPauseBtn = document.getElementById('playPauseBtn');
+  const playPauseBtnSmall = document.getElementById('playPauseBtnSmall');
+  const progressBar = document.getElementById('progressBar');
+  const progressFill = document.getElementById('progressFill');
+  const progressHandle = document.getElementById('progressHandle');
+  const currentTimeEl = document.getElementById('currentTime');
+  const durationEl = document.getElementById('duration');
+  const loopBtn = document.getElementById('loopBtn');
+  const fullscreenBtn = document.getElementById('fullscreenBtn');
+  const playerContainer = document.querySelector('.custom-video-player');
+
+  let isSeeking = false;
+  let wasPlaying = false;
+
+  // Format time helper
+  function formatTime(seconds) {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  }
+
+  // Update progress bar
+  function updateProgress() {
+    if (!isSeeking && video.duration) {
+      const progress = (video.currentTime / video.duration) * 100;
+      progressFill.style.width = `${progress}%`;
+      progressHandle.style.left = `${progress}%`;
+      currentTimeEl.textContent = formatTime(video.currentTime);
+    }
+  }
+
+  // Update duration when metadata loads
+  video.addEventListener('loadedmetadata', function() {
+    durationEl.textContent = formatTime(video.duration);
+  });
+
+  // Update progress as video plays
+  video.addEventListener('timeupdate', updateProgress);
+
+  // Play/pause functionality
+  function togglePlayPause() {
+    if (video.paused) {
+      video.play();
+      playPauseBtn.innerHTML = '<i class="bi bi-pause-fill"></i>';
+      playPauseBtnSmall.innerHTML = '<i class="bi bi-pause-fill"></i>';
+      playPauseOverlay.classList.remove('visible');
+    } else {
+      video.pause();
+      playPauseBtn.innerHTML = '<i class="bi bi-play-fill"></i>';
+      playPauseBtnSmall.innerHTML = '<i class="bi bi-play-fill"></i>';
+      playPauseOverlay.classList.add('visible');
+    }
+  }
+
+  // Event listeners for play/pause buttons
+  playPauseBtn.addEventListener('click', togglePlayPause);
+  playPauseBtnSmall.addEventListener('click', togglePlayPause);
+  video.addEventListener('click', togglePlayPause);
+
+  // Show overlay on pause
+  video.addEventListener('pause', function() {
+    playPauseOverlay.classList.add('visible');
+  });
+
+  video.addEventListener('play', function() {
+    playPauseOverlay.classList.remove('visible');
+  });
+
+  // Loop functionality
+  loopBtn.addEventListener('click', function() {
+    video.loop = !video.loop;
+    loopBtn.classList.toggle('active', video.loop);
+  });
+
+  // Fullscreen functionality
+  fullscreenBtn.addEventListener('click', function() {
+    if (document.fullscreenElement) {
+      document.exitFullscreen();
+    } else {
+      playerContainer.requestFullscreen();
+    }
+  });
+
+  // Fullscreen change handler
+  document.addEventListener('fullscreenchange', function() {
+    const isFullscreen = document.fullscreenElement === playerContainer;
+    fullscreenBtn.innerHTML = isFullscreen ?
+      '<i class="bi bi-fullscreen-exit"></i>' :
+      '<i class="bi bi-fullscreen"></i>';
+  });
+
+  // Progress bar seeking
+  function seekToPosition(clientX) {
+    const rect = progressBar.getBoundingClientRect();
+    const percent = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    const newTime = percent * video.duration;
+    video.currentTime = newTime;
+    updateProgress();
+  }
+
+  // Mouse events for progress bar
+  progressBar.addEventListener('mousedown', function(e) {
+    isSeeking = true;
+    wasPlaying = !video.paused;
+    video.pause();
+    seekToPosition(e.clientX);
+    playerContainer.classList.add('seeking');
+  });
+
+  document.addEventListener('mousemove', function(e) {
+    if (isSeeking) {
+      seekToPosition(e.clientX);
+    }
+  });
+
+  document.addEventListener('mouseup', function() {
+    if (isSeeking) {
+      isSeeking = false;
+      playerContainer.classList.remove('seeking');
+      if (wasPlaying) {
+        video.play();
+      }
+    }
+  });
+
+  // Touch events for mobile seeking
+  let touchStartX = 0;
+  let touchStartTime = 0;
+  let isTouchSeeking = false;
+
+  progressBar.addEventListener('touchstart', function(e) {
+    e.preventDefault();
+    isTouchSeeking = true;
+    wasPlaying = !video.paused;
+    video.pause();
+    const touch = e.touches[0];
+    seekToPosition(touch.clientX);
+    playerContainer.classList.add('seeking');
+  }, { passive: false });
+
+  progressBar.addEventListener('touchmove', function(e) {
+    e.preventDefault();
+    if (isTouchSeeking) {
+      const touch = e.touches[0];
+      seekToPosition(touch.clientX);
+    }
+  }, { passive: false });
+
+  progressBar.addEventListener('touchend', function(e) {
+    e.preventDefault();
+    if (isTouchSeeking) {
+      isTouchSeeking = false;
+      playerContainer.classList.remove('seeking');
+      if (wasPlaying) {
+        video.play();
+      }
+    }
+  }, { passive: false });
+
+  // Video element touch seeking (slide left/right)
+  let videoTouchStartX = 0;
+  let videoTouchStartTime = 0;
+  let videoIsSeeking = false;
+
+  video.addEventListener('touchstart', function(e) {
+    if (e.touches.length === 1) {
+      videoTouchStartX = e.touches[0].clientX;
+      videoTouchStartTime = video.currentTime;
+      videoIsSeeking = false;
+    }
+  }, { passive: true });
+
+  video.addEventListener('touchmove', function(e) {
+    if (e.touches.length === 1 && !isSeeking) {
+      e.preventDefault();
+      const touchX = e.touches[0].clientX;
+      const deltaX = touchX - videoTouchStartX;
+
+      // Only start seeking if horizontal movement is significant
+      if (Math.abs(deltaX) > 50) {
+        videoIsSeeking = true;
+        const seekPercent = deltaX / (window.innerWidth * 0.5); // Slower seeking
+        const newTime = Math.max(0, Math.min(video.duration, videoTouchStartTime + (seekPercent * video.duration)));
+        video.currentTime = newTime;
+        updateProgress();
+      }
+    }
+  }, { passive: false });
+
+  video.addEventListener('touchend', function(e) {
+    videoIsSeeking = false;
+  });
+
+  // Mouse drag seeking on video element
+  let mouseStartX = 0;
+  let mouseStartTime = 0;
+  let mouseIsSeeking = false;
+
+  video.addEventListener('mousedown', function(e) {
+    if (e.button === 0) { // Left click only
+      mouseStartX = e.clientX;
+      mouseStartTime = video.currentTime;
+      mouseIsSeeking = false;
+      video.style.cursor = 'grabbing';
+    }
+  });
+
+  video.addEventListener('mousemove', function(e) {
+    if (e.buttons === 1 && !isSeeking) { // Left button held
+      const deltaX = e.clientX - mouseStartX;
+
+      if (Math.abs(deltaX) > 20) {
+        mouseIsSeeking = true;
+        const seekPercent = deltaX / (playerContainer.offsetWidth * 0.3); // Slower seeking
+        const newTime = Math.max(0, Math.min(video.duration, mouseStartTime + (seekPercent * video.duration)));
+        video.currentTime = newTime;
+        updateProgress();
+      }
+    }
+  });
+
+  video.addEventListener('mouseup', function() {
+    mouseIsSeeking = false;
+    video.style.cursor = '';
+  });
+
+  video.addEventListener('mouseleave', function() {
+    mouseIsSeeking = false;
+    video.style.cursor = '';
+  });
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', function(e) {
+    switch(e.code) {
+      case 'Space':
+        e.preventDefault();
+        togglePlayPause();
+        break;
+      case 'KeyF':
+        e.preventDefault();
+        fullscreenBtn.click();
+        break;
+      case 'KeyL':
+        e.preventDefault();
+        loopBtn.click();
+        break;
+      case 'ArrowLeft':
+        e.preventDefault();
+        video.currentTime = Math.max(0, video.currentTime - 10);
+        break;
+      case 'ArrowRight':
+        e.preventDefault();
+        video.currentTime = Math.min(video.duration, video.currentTime + 10);
+        break;
+    }
+  });
+
+  // Prevent context menu on video
+  video.addEventListener('contextmenu', function(e) {
+    e.preventDefault();
+  });
+
+  // Auto-hide controls on mobile after interaction
+  let controlsTimeout;
+  function resetControlsTimeout() {
+    clearTimeout(controlsTimeout);
+    if (window.innerWidth <= 768) {
+      controlsTimeout = setTimeout(() => {
+        playPauseOverlay.style.opacity = '0';
+        document.querySelector('.video-controls').style.opacity = '0';
+      }, 3000);
+    }
+  }
+
+  // Show controls on interaction
+  playerContainer.addEventListener('touchstart', resetControlsTimeout);
+  playerContainer.addEventListener('touchmove', resetControlsTimeout);
+  playerContainer.addEventListener('touchend', resetControlsTimeout);
+
+  // Initial setup
+  updateProgress();
+});
+</script>
 {% endblock %}
