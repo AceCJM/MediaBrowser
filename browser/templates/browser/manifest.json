@@ -1,0 +1,22 @@
+{
+  "name": "MediaBrowser",
+  "short_name": "MediaBrowser",
+  "description": "A modern media browser for your personal library",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0d1117",
+  "theme_color": "#e94560",
+  "orientation": "any",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/static/browser/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["entertainment", "media", "photos", "videos"],
+  "lang": "en-US",
+  "dir": "ltr"
+}

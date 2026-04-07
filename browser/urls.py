@@ -1,5 +1,6 @@
 from django.urls import path
 from . import views
+from django.views.generic import TemplateView
 
 app_name = "browser"
 
@@ -14,4 +15,7 @@ urlpatterns = [
     path("library/<int:library_id>/download/progress/", views.download_progress, name="download_progress"),
     path("active-downloads/", views.active_downloads, name="active_downloads"),
     path("cancel-download/", views.cancel_download, name="cancel_download"),
+    # PWA support
+    path("manifest.json", TemplateView.as_view(template_name="browser/manifest.json", content_type="application/manifest+json"), name="manifest"),
+    path("sw.js", TemplateView.as_view(template_name="browser/sw.js", content_type="application/javascript"), name="service_worker"),
 ]
