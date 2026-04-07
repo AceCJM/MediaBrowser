@@ -313,6 +313,14 @@ def browse(request, library_id, subpath=""):
     library = _get_accessible_library(request.user, library_id)
 
     subpath = subpath.strip("/").replace("\\", "/")
+    # URL decode the subpath to handle special characters in directory names
+    # Handle potential double-encoding by decoding until no more encoded characters
+    from urllib.parse import unquote
+    while '%' in subpath:
+        decoded = unquote(subpath)
+        if decoded == subpath:  # No change, stop decoding
+            break
+        subpath = decoded
 
     if subpath:
         abs_path = _safe_join(library.path, subpath)
@@ -354,10 +362,16 @@ def browse(request, library_id, subpath=""):
         filename = os.path.basename(rel_path)
         ext = os.path.splitext(filename)[1].lower()
         
+        # For normal browsing, rel_path is just filename, but we need full path from library root
+        if not search_query and subpath:
+            full_rel_path = f"{subpath}/{rel_path}"
+        else:
+            full_rel_path = rel_path
+        
         media_items.append(
             {
                 "filename": filename,
-                "rel_path": rel_path,
+                "rel_path": full_rel_path,
                 "display_path": rel_path if search_query else filename,  # Show full path for search results
                 "is_video": ext in VIDEO_EXTENSIONS,
                 "is_image": ext in IMAGE_EXTENSIONS,
@@ -400,6 +414,14 @@ def media_player(request, library_id, filepath):
     library = _get_accessible_library(request.user, library_id)
 
     filepath = filepath.strip("/")
+    # URL decode the filepath to handle special characters
+    # Handle potential double-encoding by decoding until no more encoded characters
+    from urllib.parse import unquote
+    while '%' in filepath:
+        decoded = unquote(filepath)
+        if decoded == filepath:  # No change, stop decoding
+            break
+        filepath = decoded
     abs_path = _safe_join(library.path, filepath)
 
     if not os.path.isfile(abs_path):
@@ -460,6 +482,14 @@ def serve_media(request, library_id, filepath):
     library = _get_accessible_library(request.user, library_id)
 
     filepath = filepath.strip("/")
+    # URL decode the filepath to handle special characters
+    # Handle potential double-encoding by decoding until no more encoded characters
+    from urllib.parse import unquote
+    while '%' in filepath:
+        decoded = unquote(filepath)
+        if decoded == filepath:  # No change, stop decoding
+            break
+        filepath = decoded
     abs_path = _safe_join(library.path, filepath)
 
     if not os.path.isfile(abs_path):
@@ -504,6 +534,14 @@ def serve_thumbnail(request, library_id, filepath):
     library = _get_accessible_library(request.user, library_id)
 
     filepath = filepath.strip("/")
+    # URL decode the filepath to handle special characters
+    # Handle potential double-encoding by decoding until no more encoded characters
+    from urllib.parse import unquote
+    while '%' in filepath:
+        decoded = unquote(filepath)
+        if decoded == filepath:  # No change, stop decoding
+            break
+        filepath = decoded
     abs_path = _safe_join(library.path, filepath)
 
     if not os.path.isfile(abs_path):

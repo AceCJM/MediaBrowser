@@ -1,5 +1,7 @@
 # MediaBrowser
 
+The First fully vibe coded project I've ever done
+
 A Django-based media browser that lets you host and stream videos and photos from configured directories.
 
 ## Features
