@@ -29,25 +29,42 @@
   </ol>
 </nav>
 
-{# ── Sorting controls ──────────────────────────────────────────────────────── #}
+{# ── Search and Sorting controls ───────────────────────────────────────────── #}
 <div class="mb-4">
-  <div class="d-flex align-items-center justify-content-between">
-    <div class="d-flex align-items-center gap-2">
-      <span class="text-muted fw-semibold">Sort by:</span>
-      <div class="btn-group btn-group-sm" role="group">
+  <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3">
+    {# Search input - compact on the left #}
+    <form method="get" class="d-flex gap-2 flex-grow-1" style="max-width: 400px;">
+      <input type="text" name="search" value="{{ search_query }}" 
+             class="form-control form-control-sm" placeholder="Search files and folders..." 
+             autocomplete="off">
+      <button type="submit" class="btn btn-outline-primary btn-sm">
+        <i class="bi bi-search"></i>
+      </button>
+      {% if search_query %}
+        <a href="{% if subpath %}?subpath={{ subpath }}{% else %}?{% endif %}" class="btn btn-outline-secondary btn-sm">
+          <i class="bi bi-x-circle"></i>
+        </a>
+      {% endif %}
+    </form>
+    
+    {# Sorting controls and download button on the right #}
+    <div class="d-flex align-items-center gap-3">
+      <div class="d-flex align-items-center gap-2">
+        <span class="text-muted fw-semibold small">Sort by:</span>
+        <div class="d-flex gap-1" role="group">
         {# Name sorting #}
         {% if sort_by == 'name' %}
           {% if sort_order == 'asc' %}
-            <a href="?{% if subpath %}subpath={{ subpath }}&{% endif %}sort=name&order=desc" class="btn btn-outline-primary active">
+            <a href="?{% if subpath %}subpath={{ subpath }}&{% endif %}{% if search_query %}search={{ search_query }}&{% endif %}sort=name&order=desc" class="btn btn-outline-primary btn-sm active">
               <i class="bi bi-alphabet me-1"></i>Name <i class="bi bi-chevron-up ms-1"></i>
             </a>
           {% else %}
-            <a href="?{% if subpath %}subpath={{ subpath }}&{% endif %}sort=name&order=asc" class="btn btn-outline-primary active">
+            <a href="?{% if subpath %}subpath={{ subpath }}&{% endif %}{% if search_query %}search={{ search_query }}&{% endif %}sort=name&order=asc" class="btn btn-outline-primary btn-sm active">
               <i class="bi bi-alphabet me-1"></i>Name <i class="bi bi-chevron-down ms-1"></i>
             </a>
           {% endif %}
         {% else %}
-          <a href="?{% if subpath %}subpath={{ subpath }}&{% endif %}sort=name&order=asc" class="btn btn-outline-primary">
+          <a href="?{% if subpath %}subpath={{ subpath }}&{% endif %}{% if search_query %}search={{ search_query }}&{% endif %}sort=name&order=asc" class="btn btn-outline-primary btn-sm">
             <i class="bi bi-alphabet me-1"></i>Name
           </a>
         {% endif %}
@@ -55,45 +72,59 @@
         {# Date sorting #}
         {% if sort_by == 'date' %}
           {% if sort_order == 'asc' %}
-            <a href="?{% if subpath %}subpath={{ subpath }}&{% endif %}sort=date&order=desc" class="btn btn-outline-primary active">
-              <i class="bi bi-calendar me-1"></i>Date Modified <i class="bi bi-chevron-up ms-1"></i>
+            <a href="?{% if subpath %}subpath={{ subpath }}&{% endif %}{% if search_query %}search={{ search_query }}&{% endif %}sort=date&order=desc" class="btn btn-outline-primary btn-sm active">
+              <i class="bi bi-calendar me-1"></i>Date <i class="bi bi-chevron-up ms-1"></i>
             </a>
           {% else %}
-            <a href="?{% if subpath %}subpath={{ subpath }}&{% endif %}sort=date&order=asc" class="btn btn-outline-primary active">
-              <i class="bi bi-calendar me-1"></i>Date Modified <i class="bi bi-chevron-down ms-1"></i>
+            <a href="?{% if subpath %}subpath={{ subpath }}&{% endif %}{% if search_query %}search={{ search_query }}&{% endif %}sort=date&order=asc" class="btn btn-outline-primary btn-sm active">
+              <i class="bi bi-calendar me-1"></i>Date <i class="bi bi-chevron-down ms-1"></i>
             </a>
           {% endif %}
         {% else %}
-          <a href="?{% if subpath %}subpath={{ subpath }}&{% endif %}sort=date&order=asc" class="btn btn-outline-primary">
-            <i class="bi bi-calendar me-1"></i>Date Modified
+          <a href="?{% if subpath %}subpath={{ subpath }}&{% endif %}{% if search_query %}search={{ search_query }}&{% endif %}sort=date&order=desc" class="btn btn-outline-primary btn-sm">
+            <i class="bi bi-calendar me-1"></i>Date
           </a>
         {% endif %}
 
         {# Size sorting #}
         {% if sort_by == 'size' %}
           {% if sort_order == 'asc' %}
-            <a href="?{% if subpath %}subpath={{ subpath }}&{% endif %}sort=size&order=desc" class="btn btn-outline-primary active">
+            <a href="?{% if subpath %}subpath={{ subpath }}&{% endif %}{% if search_query %}search={{ search_query }}&{% endif %}sort=size&order=desc" class="btn btn-outline-primary btn-sm active">
               <i class="bi bi-file-earmark me-1"></i>Size <i class="bi bi-chevron-up ms-1"></i>
             </a>
           {% else %}
-            <a href="?{% if subpath %}subpath={{ subpath }}&{% endif %}sort=size&order=asc" class="btn btn-outline-primary active">
+            <a href="?{% if subpath %}subpath={{ subpath }}&{% endif %}{% if search_query %}search={{ search_query }}&{% endif %}sort=size&order=asc" class="btn btn-outline-primary btn-sm active">
               <i class="bi bi-file-earmark me-1"></i>Size <i class="bi bi-chevron-down ms-1"></i>
             </a>
           {% endif %}
         {% else %}
-          <a href="?{% if subpath %}subpath={{ subpath }}&{% endif %}sort=size&order=asc" class="btn btn-outline-primary">
+          <a href="?{% if subpath %}subpath={{ subpath }}&{% endif %}{% if search_query %}search={{ search_query }}&{% endif %}sort=size&order=asc" class="btn btn-outline-primary btn-sm">
             <i class="bi bi-file-earmark me-1"></i>Size
           </a>
         {% endif %}
       </div>
+      </div>
+      
+      {# Download button #}
+      <button type="button" class="btn btn-success btn-sm" onclick="showDownloadModal()">
+        <i class="bi bi-cloud-download me-1"></i>Download Videos
+      </button>
     </div>
-
-    {# Download button #}
-    <button type="button" class="btn btn-success" onclick="showDownloadModal()">
-      <i class="bi bi-cloud-download me-1"></i>Download Videos
-    </button>
   </div>
 </div>
+
+{# ── Search results indicator ──────────────────────────────────────────────── #}
+{% if search_query %}
+<div class="mb-3">
+  <div class="alert alert-info d-flex align-items-center" role="alert">
+    <i class="bi bi-search me-2"></i>
+    <div>
+      <strong>Recursive Search Results:</strong> "{{ search_query }}" 
+      <span class="text-muted">({{ folders|length }} folders, {{ media_items|length }} files found in subfolders)</span>
+    </div>
+  </div>
+</div>
+{% endif %}
 
 {# ── Back button ───────────────────────────────────────────────────────────── #}
 {% if subpath %}
@@ -144,7 +175,7 @@
               loading="lazy"
             >
             <div class="card-body py-2 px-2">
-              <p class="card-title" title="{{ item.filename }}">{{ item.filename }}</p>
+              <p class="card-title" title="{{ item.display_path }}">{{ item.display_path }}</p>
               <div class="mt-1">
                 {% if item.is_video %}
                   <span class="badge badge-video" style="font-size:.65rem;"><i class="bi bi-camera-video me-1"></i>Video</span>

@@ -51,42 +51,97 @@ def _get_accessible_library(user, library_id):
     return library
 
 
-def _list_directory(abs_path, sort_by='name', sort_order='asc'):
-    """Return (folders, media_files) sorted lists for abs_path."""
+def _list_directory(abs_path, sort_by='name', sort_order='asc', search_query=''):
+    """Return (folders, media_files) sorted and filtered lists for abs_path."""
     folders = []
     media_files = []
-    try:
-        entries = list(os.scandir(abs_path))  # Convert to list so we can sort it
-    except PermissionError:
-        return folders, media_files
-
-    # First pass: collect all entries
-    all_files = []
-    for entry in entries:
-        if entry.name.startswith("."):
-            continue
-        if entry.is_dir(follow_symlinks=False):
-            folders.append(entry.name)
-        elif entry.is_file(follow_symlinks=False):
-            ext = os.path.splitext(entry.name)[1].lower()
-            if ext in MEDIA_EXTENSIONS:
-                all_files.append(entry.name)
-
-    # Second pass: filter out originals when converted versions exist
-    converted_files = set()
-    for filename in all_files:
-        name_without_ext = os.path.splitext(filename)[0]
-        ext = os.path.splitext(filename)[1]
-        
-        # Check if this is a converted file (ends with _converted)
-        if name_without_ext.endswith('_converted'):
-            original_name = name_without_ext[:-10] + ext  # Remove '_converted'
-            converted_files.add(original_name)
     
-    # Only include files that don't have converted versions
-    for filename in all_files:
-        if filename not in converted_files:
-            media_files.append(filename)
+    if search_query:
+        # Recursive search through subdirectories
+        search_lower = search_query.lower()
+        try:
+            for root, dirs, files in os.walk(abs_path):
+                # Get relative path from abs_path
+                rel_root = os.path.relpath(root, abs_path)
+                if rel_root == '.':
+                    rel_root = ''
+                
+                # Filter directories
+                for dirname in dirs:
+                    if dirname.startswith('.'):
+                        continue
+                    if search_lower in dirname.lower():
+                        # For search results, we need to show the full relative path
+                        if rel_root:
+                            folder_path = os.path.join(rel_root, dirname)
+                        else:
+                            folder_path = dirname
+                        folders.append(folder_path)
+                
+                # Filter media files
+                for filename in files:
+                    if filename.startswith('.'):
+                        continue
+                    
+                    ext = os.path.splitext(filename)[1].lower()
+                    if ext in MEDIA_EXTENSIONS:
+                        # Check if this file should be excluded (has converted version)
+                        full_path = os.path.join(root, filename)
+                        rel_path = os.path.relpath(full_path, abs_path)
+                        
+                        # Skip if there's a converted version
+                        name_without_ext = os.path.splitext(filename)[0]
+                        ext = os.path.splitext(filename)[1]
+                        converted_name = f"{name_without_ext}_converted{ext}"
+                        converted_path = os.path.join(root, converted_name)
+                        if os.path.exists(converted_path):
+                            continue
+                            
+                        # Check if filename matches search
+                        if search_lower in filename.lower():
+                            media_files.append(rel_path)
+        except PermissionError:
+            pass
+    else:
+        # Original non-recursive logic for normal browsing
+        try:
+            entries = list(os.scandir(abs_path))  # Convert to list so we can sort it
+        except PermissionError:
+            return folders, media_files
+
+        # First pass: collect all entries
+        all_files = []
+        for entry in entries:
+            if entry.name.startswith("."):
+                continue
+            if entry.is_dir(follow_symlinks=False):
+                folders.append(entry.name)
+            elif entry.is_file(follow_symlinks=False):
+                ext = os.path.splitext(entry.name)[1].lower()
+                if ext in MEDIA_EXTENSIONS:
+                    all_files.append(entry.name)
+
+        # Second pass: filter out originals when converted versions exist
+        converted_files = set()
+        for filename in all_files:
+            name_without_ext = os.path.splitext(filename)[0]
+            ext = os.path.splitext(filename)[1]
+            
+            # Check if this is a converted file (ends with _converted)
+            if name_without_ext.endswith('_converted'):
+                original_name = name_without_ext[:-10] + ext  # Remove '_converted'
+                converted_files.add(original_name)
+        
+        # Only include files that don't have converted versions
+        for filename in all_files:
+            if filename not in converted_files:
+                media_files.append(filename)
+
+    # Apply search filter if provided (only for non-recursive case, recursive is already filtered)
+    if search_query and not search_query.strip():
+        search_lower = search_query.lower()
+        folders = [f for f in folders if search_lower in f.lower()]
+        media_files = [f for f in media_files if search_lower in f.lower()]
 
     # Sort folders
     folders.sort(key=lambda x: x.lower() if sort_by == 'name' else x, reverse=(sort_order == 'desc'))
@@ -97,14 +152,16 @@ def _list_directory(abs_path, sort_by='name', sort_order='asc'):
     elif sort_by == 'size':
         def get_file_size(filename):
             try:
-                return os.path.getsize(os.path.join(abs_path, filename))
+                full_path = os.path.join(abs_path, filename)
+                return os.path.getsize(full_path)
             except OSError:
                 return 0
         media_files.sort(key=get_file_size, reverse=(sort_order == 'desc'))
     elif sort_by == 'date':
         def get_file_mtime(filename):
             try:
-                return os.path.getmtime(os.path.join(abs_path, filename))
+                full_path = os.path.join(abs_path, filename)
+                return os.path.getmtime(full_path)
             except OSError:
                 return 0
         media_files.sort(key=get_file_mtime, reverse=(sort_order == 'desc'))
@@ -266,8 +323,11 @@ def browse(request, library_id, subpath=""):
         raise Http404("Directory not found")
 
     # Get sorting parameters from request
-    sort_by = request.GET.get('sort', 'name')
-    sort_order = request.GET.get('order', 'asc')
+    sort_by = request.GET.get('sort', 'date')  # Default to date
+    sort_order = request.GET.get('order', 'desc')  # Default to descending
+    
+    # Get search parameter
+    search_query = request.GET.get('search', '').strip()
     
     # Validate parameters
     if sort_by not in ['name', 'date', 'size']:
@@ -275,7 +335,7 @@ def browse(request, library_id, subpath=""):
     if sort_order not in ['asc', 'desc']:
         sort_order = 'asc'
 
-    folders, media_files = _list_directory(abs_path, sort_by=sort_by, sort_order=sort_order)
+    folders, media_files = _list_directory(abs_path, sort_by=sort_by, sort_order=sort_order, search_query=search_query)
 
     # Build breadcrumbs
     parts = [p for p in subpath.split("/") if p]
@@ -289,17 +349,35 @@ def browse(request, library_id, subpath=""):
 
     # Build media items with metadata
     media_items = []
-    for filename in media_files:
+    for rel_path in media_files:
+        # rel_path might be just a filename (normal browsing) or a full relative path (recursive search)
+        filename = os.path.basename(rel_path)
         ext = os.path.splitext(filename)[1].lower()
-        rel_path = f"{subpath}/{filename}" if subpath else filename
+        
         media_items.append(
             {
                 "filename": filename,
                 "rel_path": rel_path,
+                "display_path": rel_path if search_query else filename,  # Show full path for search results
                 "is_video": ext in VIDEO_EXTENSIONS,
                 "is_image": ext in IMAGE_EXTENSIONS,
             }
         )
+
+    # For search results, folders might contain subdirectory paths
+    # We need to process them to show proper navigation
+    processed_folders = []
+    for folder_path in folders:
+        if search_query:
+            # For search results, folder_path might be "subfolder" or "subfolder/nested"
+            # We want to show the top-level folder that contains matches
+            top_level = folder_path.split('/')[0]
+            if top_level not in processed_folders:
+                processed_folders.append(top_level)
+        else:
+            processed_folders.append(folder_path)
+    
+    folders = processed_folders
 
     context = {
         "library": library,
@@ -311,6 +389,7 @@ def browse(request, library_id, subpath=""):
         "parent_subpath": parent_subpath,
         "sort_by": sort_by,
         "sort_order": sort_order,
+        "search_query": search_query,
     }
     return render(request, "browser/browse.html", context)
 
