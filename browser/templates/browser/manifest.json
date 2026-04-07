@@ -14,9 +14,23 @@
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
+    },
+    {
+      "src": "/static/browser/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/static/browser/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ],
   "categories": ["entertainment", "media", "photos", "videos"],
   "lang": "en-US",
-  "dir": "ltr"
+  "dir": "ltr",
+  "prefer_related_applications": false,
+  "screenshots": []
 }
