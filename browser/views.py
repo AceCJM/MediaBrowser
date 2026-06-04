@@ -12,7 +12,7 @@ import time
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
-from django.http import Http404, HttpResponse, FileResponse, JsonResponse
+from django.http import Http404, HttpResponse, FileResponse, JsonResponse, StreamingHttpResponse
 from django.shortcuts import get_object_or_404, render
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
@@ -37,9 +37,16 @@ THUMBNAIL_SIZE = (320, 180)
 
 def _safe_join(base, *paths):
     """Join base with paths, raising Http404 if the result escapes base."""
+    # Use realpath only for the base so library symlinks are resolved correctly.
+    # Use normpath (not realpath) for the joined path to avoid Windows
+    # GetFinalPathNameByHandle returning \\?\-prefixed paths that break the
+    # startswith security check.
     base = os.path.realpath(base)
-    joined = os.path.realpath(os.path.join(base, *paths))
-    if not joined.startswith(base + os.sep) and joined != base:
+    joined = os.path.normpath(os.path.join(base, *paths))
+    # Case-insensitive comparison on Windows to handle drive-letter case mismatches
+    base_check = base.lower() if os.name == 'nt' else base
+    joined_check = joined.lower() if os.name == 'nt' else joined
+    if not joined_check.startswith(base_check + os.sep) and joined_check != base_check:
         raise Http404("Path outside library")
     return joined
 
@@ -425,17 +432,27 @@ def media_player(request, library_id, filepath):
     abs_path = _safe_join(library.path, filepath)
 
     if not os.path.isfile(abs_path):
-        # Check if there's a converted version we should redirect to
         name_without_ext = os.path.splitext(filepath)[0]
         ext = os.path.splitext(filepath)[1]
-        converted_filepath = f"{name_without_ext}_converted{ext}"
-        converted_abs_path = _safe_join(library.path, converted_filepath)
-        
-        if os.path.isfile(converted_abs_path):
-            # Redirect to the converted version
-            from django.shortcuts import redirect
-            return redirect('browser:media_player', library_id=library_id, filepath=converted_filepath)
-        
+
+        # If this is already a _converted file and it can't be found,
+        # try serving the original (without _converted) — handles the case
+        # where conversion failed or the file was renamed/deleted.
+        if name_without_ext.endswith('_converted'):
+            original_stem = name_without_ext[:-10]  # strip '_converted'
+            original_filepath = original_stem + ext
+            original_abs_path = _safe_join(library.path, original_filepath)
+            if os.path.isfile(original_abs_path):
+                from django.shortcuts import redirect
+                return redirect('browser:media_player', library_id=library_id, filepath=original_filepath)
+        else:
+            # Not a _converted file — check if a converted version exists
+            converted_filepath = f"{name_without_ext}_converted{ext}"
+            converted_abs_path = _safe_join(library.path, converted_filepath)
+            if os.path.isfile(converted_abs_path):
+                from django.shortcuts import redirect
+                return redirect('browser:media_player', library_id=library_id, filepath=converted_filepath)
+
         raise Http404("File not found")
 
     ext = os.path.splitext(filepath)[1].lower()
@@ -448,8 +465,12 @@ def media_player(request, library_id, filepath):
 
     mime_type = mimetypes.guess_type(abs_path)[0] or "application/octet-stream"
     
-    # Get file size
-    file_size = os.path.getsize(abs_path)
+    # Get file size. UNC/network shares can intermittently fail reads even when
+    # os.path.isfile returns True; surface that as a 404 instead of a 500.
+    try:
+        file_size = os.path.getsize(abs_path)
+    except OSError:
+        raise Http404("File not accessible")
     
     # Get video metadata if it's a video
     video_metadata = None
@@ -493,17 +514,22 @@ def serve_media(request, library_id, filepath):
     abs_path = _safe_join(library.path, filepath)
 
     if not os.path.isfile(abs_path):
-        # Check if there's a converted version we should redirect to
         name_without_ext = os.path.splitext(filepath)[0]
         ext = os.path.splitext(filepath)[1]
-        converted_filepath = f"{name_without_ext}_converted{ext}"
-        converted_abs_path = _safe_join(library.path, converted_filepath)
-        
-        if os.path.isfile(converted_abs_path):
-            # Redirect to the converted version
-            from django.shortcuts import redirect
-            return redirect('browser:serve_media', library_id=library_id, filepath=converted_filepath)
-        
+
+        if name_without_ext.endswith('_converted'):
+            original_filepath = name_without_ext[:-10] + ext
+            original_abs_path = _safe_join(library.path, original_filepath)
+            if os.path.isfile(original_abs_path):
+                from django.shortcuts import redirect
+                return redirect('browser:serve_media', library_id=library_id, filepath=original_filepath)
+        else:
+            converted_filepath = f"{name_without_ext}_converted{ext}"
+            converted_abs_path = _safe_join(library.path, converted_filepath)
+            if os.path.isfile(converted_abs_path):
+                from django.shortcuts import redirect
+                return redirect('browser:serve_media', library_id=library_id, filepath=converted_filepath)
+
         raise Http404("File not found")
 
     ext = os.path.splitext(filepath)[1].lower()
@@ -513,18 +539,74 @@ def serve_media(request, library_id, filepath):
     # Determine MIME type with special handling for MPEG-TS
     if ext in {".ts", ".mts", ".m2ts"}:
         mime_type = "video/MP2T"
-        is_mpeg_ts = True
     else:
         mime_type = mimetypes.guess_type(abs_path)[0] or "application/octet-stream"
-        is_mpeg_ts = False
 
+    file_size = os.path.getsize(abs_path)
+    range_header = request.META.get("HTTP_RANGE", "").strip()
+
+    if range_header:
+        # Parse RFC 7233 Range header (only single byte-range supported)
+        range_match = re.match(r"bytes=(\d*)-(\d*)", range_header)
+        if not range_match:
+            response = HttpResponse(status=416)
+            response["Content-Range"] = f"bytes */{file_size}"
+            return response
+
+        first_str, last_str = range_match.groups()
+        try:
+            if first_str:
+                first = int(first_str)
+                last = int(last_str) if last_str else file_size - 1
+            else:
+                # Suffix range: bytes=-N means last N bytes
+                suffix = int(last_str)
+                first = max(0, file_size - suffix)
+                last = file_size - 1
+        except ValueError:
+            response = HttpResponse(status=416)
+            response["Content-Range"] = f"bytes */{file_size}"
+            return response
+
+        if first >= file_size or last >= file_size or first > last:
+            response = HttpResponse(status=416)
+            response["Content-Range"] = f"bytes */{file_size}"
+            return response
+
+        length = last - first + 1
+
+        def _range_iterator(path, offset, size, chunk=65536):
+            try:
+                with open(path, "rb") as fh:
+                    fh.seek(offset)
+                    remaining = size
+                    while remaining > 0:
+                        data = fh.read(min(chunk, remaining))
+                        if not data:
+                            break
+                        remaining -= len(data)
+                        yield data
+            except (OSError, IOError):
+                return
+
+        response = StreamingHttpResponse(
+            _range_iterator(abs_path, first, length),
+            status=206,
+            content_type=mime_type,
+        )
+        response["Content-Range"] = f"bytes {first}-{last}/{file_size}"
+        response["Content-Length"] = str(length)
+        response["Accept-Ranges"] = "bytes"
+        return response
+
+    # No Range header — serve the full file
     try:
         file_handle = open(abs_path, "rb")
         response = FileResponse(file_handle, content_type=mime_type)
         response["Accept-Ranges"] = "bytes"
+        response["Content-Length"] = str(file_size)
         return response
-    except (OSError, IOError) as e:
-        # Handle file access errors
+    except (OSError, IOError):
         raise Http404("File not accessible")
 
 
@@ -545,17 +627,22 @@ def serve_thumbnail(request, library_id, filepath):
     abs_path = _safe_join(library.path, filepath)
 
     if not os.path.isfile(abs_path):
-        # Check if there's a converted version we should redirect to
         name_without_ext = os.path.splitext(filepath)[0]
         ext = os.path.splitext(filepath)[1]
-        converted_filepath = f"{name_without_ext}_converted{ext}"
-        converted_abs_path = _safe_join(library.path, converted_filepath)
-        
-        if os.path.isfile(converted_abs_path):
-            # Redirect to the converted version's thumbnail
-            from django.shortcuts import redirect
-            return redirect('browser:serve_thumbnail', library_id=library_id, filepath=converted_filepath)
-        
+
+        if name_without_ext.endswith('_converted'):
+            original_filepath = name_without_ext[:-10] + ext
+            original_abs_path = _safe_join(library.path, original_filepath)
+            if os.path.isfile(original_abs_path):
+                from django.shortcuts import redirect
+                return redirect('browser:serve_thumbnail', library_id=library_id, filepath=original_filepath)
+        else:
+            converted_filepath = f"{name_without_ext}_converted{ext}"
+            converted_abs_path = _safe_join(library.path, converted_filepath)
+            if os.path.isfile(converted_abs_path):
+                from django.shortcuts import redirect
+                return redirect('browser:serve_thumbnail', library_id=library_id, filepath=converted_filepath)
+
         raise Http404("File not found")
 
     ext = os.path.splitext(filepath)[1].lower()

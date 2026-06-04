@@ -1,10 +1,8 @@
 // Service Worker for MediaBrowser PWA
-const CACHE_NAME = 'mediabrowser-v1';
-const STATIC_CACHE_NAME = 'mediabrowser-static-v1';
+const STATIC_CACHE_NAME = 'mediabrowser-static-v3';
 
 // Assets to cache immediately
 const STATIC_ASSETS = [
-  '/',
   '/manifest.json',
   '/static/browser/icon.svg',
   '/static/browser/icon-192.png',
@@ -28,7 +26,7 @@ self.addEventListener('activate', event => {
     caches.keys().then(cacheNames => {
       return Promise.all(
         cacheNames.map(cacheName => {
-          if (cacheName !== STATIC_CACHE_NAME && cacheName !== CACHE_NAME) {
+          if (cacheName !== STATIC_CACHE_NAME) {
             return caches.delete(cacheName);
           }
         })
@@ -37,42 +35,42 @@ self.addEventListener('activate', event => {
   );
 });
 
-// Fetch event - serve from cache when possible
+function isStaticAssetRequest(url) {
+  if (url.origin === self.location.origin) {
+    return url.pathname === '/manifest.json' || url.pathname.startsWith('/static/');
+  }
+
+  return url.origin === 'https://cdn.jsdelivr.net';
+}
+
+// Fetch event - cache only immutable/static assets.
+// Dynamic pages and media routes are always network requests.
 self.addEventListener('fetch', event => {
-  // Only cache GET requests
   if (event.request.method !== 'GET') return;
 
-  // Skip cross-origin requests
-  if (!event.request.url.startsWith(self.location.origin) &&
-      !event.request.url.startsWith('https://cdn.jsdelivr.net')) return;
+  const url = new URL(event.request.url);
+  if (!isStaticAssetRequest(url)) return;
 
   event.respondWith(
     caches.match(event.request)
-      .then(response => {
-        // Return cached version if available
-        if (response) {
-          return response;
+      .then(cachedResponse => {
+        if (cachedResponse) {
+          return cachedResponse;
         }
 
-        // Otherwise, fetch from network
         return fetch(event.request).then(networkResponse => {
-          // Don't cache non-successful responses
-          if (!networkResponse.ok) {
+          if (!networkResponse.ok || networkResponse.type !== 'basic' && networkResponse.type !== 'cors') {
             return networkResponse;
           }
 
-          // Cache successful responses
           const responseClone = networkResponse.clone();
-          caches.open(CACHE_NAME).then(cache => {
+          caches.open(STATIC_CACHE_NAME).then(cache => {
             cache.put(event.request, responseClone);
           });
 
           return networkResponse;
         });
       })
-      .catch(() => {
-        // Return offline fallback if available
-        return caches.match('/');
-      })
+      .catch(() => new Response('Offline', { status: 503, statusText: 'Offline' }))
   );
 });
