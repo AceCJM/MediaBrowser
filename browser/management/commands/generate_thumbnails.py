@@ -29,7 +29,7 @@ def _thumbnail_cache_path(library_id, rel_path):
 
 
 def _generate_image_thumbnail(abs_path):
-    """Return JPEG bytes for an image thumbnail, or None on failure."""
+    """Return (JPEG bytes, error_message)."""
     try:
         from PIL import Image
         with Image.open(abs_path) as img:
@@ -37,15 +37,15 @@ def _generate_image_thumbnail(abs_path):
             img.thumbnail(THUMBNAIL_SIZE, Image.LANCZOS)
             buf = io.BytesIO()
             img.save(buf, format="JPEG", quality=75)
-            return buf.getvalue()
-    except Exception:
-        return None
+            return buf.getvalue(), None
+    except Exception as e:
+        return None, str(e)
 
 
 def _generate_video_thumbnail(abs_path):
-    """Return JPEG bytes for a video thumbnail, or None on failure."""
+    """Return (JPEG bytes, error_message)."""
     if VideoFileClip is None:
-        return None
+        return None, "moviepy is not installed"
     try:
         with VideoFileClip(abs_path) as clip:
             # Get a frame at 10% into the video, or at 1 second, whichever is smaller
@@ -58,9 +58,9 @@ def _generate_video_thumbnail(abs_path):
             img.thumbnail(THUMBNAIL_SIZE, Image.LANCZOS)
             buf = io.BytesIO()
             img.save(buf, format="JPEG", quality=75)
-            return buf.getvalue()
-    except Exception:
-        return None
+            return buf.getvalue(), None
+    except Exception as e:
+        return None, str(e)
 
 
 class Command(BaseCommand):
@@ -177,11 +177,11 @@ class Command(BaseCommand):
                 abs_path = str(file_path)
                 try:
                     if ext in IMAGE_EXTENSIONS:
-                        data = _generate_image_thumbnail(abs_path)
+                        data, error_reason = _generate_image_thumbnail(abs_path)
                     elif ext in VIDEO_EXTENSIONS:
-                        data = _generate_video_thumbnail(abs_path)
+                        data, error_reason = _generate_video_thumbnail(abs_path)
                     else:
-                        data = None
+                        data, error_reason = None, "unsupported media extension"
 
                     if data:
                         with open(cache_path, 'wb') as f:
@@ -191,8 +191,11 @@ class Command(BaseCommand):
                         )
                         generated += 1
                     else:
+                        reason_text = error_reason or 'unknown error'
                         self.stdout.write(
-                            self.style.WARNING(f'  Failed to generate thumbnail for {rel_path}')
+                            self.style.WARNING(
+                                f'  Failed to generate thumbnail for {rel_path}: {reason_text}'
+                            )
                         )
                         errors += 1
 
